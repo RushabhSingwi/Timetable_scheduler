@@ -2,8 +2,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Teacher, Class, Schedule
-from .serializers import ScheduleSerializer, ScheduleInputSerializer
+from .serializers import ScheduleSerializer, ScheduleInputSerializer, TeacherSerializer
 from .scheduler import SchedulingService
+
+class TeacherCreateView(APIView):
+    def post(self, request):
+        serializer = TeacherSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class GenerateScheduleView(APIView):
     def post(self, request):

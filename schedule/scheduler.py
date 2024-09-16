@@ -6,7 +6,7 @@ from .models import Teacher, Class, Schedule
 class SchedulingService:
     def __init__(self, num_days: int):
         self.num_days = num_days
-        self.time_slots = 9  # 9 AM to 5 PM, 1-hour slots
+        self.time_slots = 8  # 9 AM to 5 PM, 1-hour slots
         self.teachers = {}
         self.classes = {}
 

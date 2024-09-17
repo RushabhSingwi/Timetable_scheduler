@@ -7,11 +7,13 @@ class TeacherSerializer(serializers.ModelSerializer):
         model = Teacher
         fields = ['id', 'name']
 
+
 # Subject serializer
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
         fields = ['id', 'name']
+
 
 # Class serializer
 class ClassSerializer(serializers.ModelSerializer):
@@ -21,15 +23,12 @@ class ClassSerializer(serializers.ModelSerializer):
         model = Class
         fields = ['id', 'name', 'subjects']
 
-class ClassSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Class
-        fields = ['id', 'name']
 
 class ClassSubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClassSubject
         fields = ['class_name', 'subject', 'teacher', 'number_of_lectures']
+
 
 class ScheduleSerializer(serializers.ModelSerializer):
     teacher = TeacherSerializer()

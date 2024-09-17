@@ -3,8 +3,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Teacher, Class, Schedule
 from .serializers import ScheduleSerializer, ScheduleInputSerializer, TeacherSerializer, ClassSubjectSerializer, \
-    SubjectSerializer
+    SubjectSerializer, ClassSerializer
 from .scheduler import SchedulingService
+
 
 class TeacherCreateView(APIView):
     def post(self, request):
@@ -13,6 +14,7 @@ class TeacherCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # Subject Create View
 class SubjectCreateView(APIView):
@@ -23,6 +25,17 @@ class SubjectCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+# Class Create View
+class ClassCreateView(APIView):
+    def post(self, request):
+        serializer = ClassSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class ClassSubjectCreateView(APIView):
     def post(self, request):
         serializer = ClassSubjectSerializer(data=request.data)
@@ -30,6 +43,7 @@ class ClassSubjectCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class GenerateScheduleView(APIView):
     def post(self, request):

@@ -17,8 +17,6 @@ class SubjectSerializer(serializers.ModelSerializer):
 
 # Class serializer
 class ClassSerializer(serializers.ModelSerializer):
-    subjects = serializers.PrimaryKeyRelatedField(queryset=Subject.objects.all(), many=True)
-
     class Meta:
         model = Class
         fields = ['id', 'name']

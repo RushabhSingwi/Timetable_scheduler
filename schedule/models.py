@@ -1,20 +1,25 @@
+from datetime import timedelta
+
 from django.db import models
+
 
 class Teacher(models.Model):
     name = models.CharField(max_length=100)
 
+
 class Subject(models.Model):
     name = models.CharField(max_length=100)
 
+
 class Class(models.Model):
     name = models.CharField(max_length=100)
-    subjects = models.ManyToManyField(Subject, through='ClassSubject')
+
 
 class ClassSubject(models.Model):
-    class_name = models.ForeignKey(Class, on_delete=models.CASCADE)
+    class_name = models.ForeignKey(Class, on_delete=models.CASCADE, blank=False, null=False)
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    number_of_lectures = models.IntegerField()
+    number_of_lectures = models.IntegerField(blank=False, null=False)
 
 
 class AvailabilityStatus(models.TextChoices):
@@ -46,7 +51,8 @@ class Availability(models.Model):
 
 
 class Schedule(models.Model):
-    class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE)
-    day = models.IntegerField()  # Representing days of the week as integers
-    hour = models.IntegerField()  # Representing hour in the 24-hour format (9 = 9 AM, 10 = 10 AM, etc.)
-    duration = models.DurationField()  # Duration of the lecture
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE, blank=False, null=False)
+    day = models.IntegerField(blank=False, null=False)  # Representing days of the week as integers
+    hour = models.IntegerField(blank=False, null=False)  # Representing hour in the 24-hour format
+    # (9 = 9 AM, 10 = 10 AM, etc.)
+    duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture

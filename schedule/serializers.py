@@ -21,7 +21,7 @@ class ClassSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Class
-        fields = ['id', 'name', 'subjects']
+        fields = ['id', 'name']
 
 
 class ClassSubjectSerializer(serializers.ModelSerializer):

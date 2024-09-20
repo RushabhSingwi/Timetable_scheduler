@@ -6,14 +6,20 @@ from django.db import models
 class Teacher(models.Model):
     name = models.CharField(max_length=100)
 
+    def __str__(self):
+        return self.name
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
 
+    def __str__(self):
+        return self.name
 
 class Class(models.Model):
     name = models.CharField(max_length=100)
 
+    def __str__(self):
+        return self.name
 
 class ClassSubject(models.Model):
     class_name = models.ForeignKey(Class, on_delete=models.CASCADE, blank=False, null=False)
@@ -21,6 +27,8 @@ class ClassSubject(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
     number_of_lectures = models.IntegerField(blank=False, null=False)
 
+    def __str__(self):
+        return self.class_name.name + self.subject.name
 
 class AvailabilityStatus(models.TextChoices):
     AVAILABLE = 'A', 'Available'

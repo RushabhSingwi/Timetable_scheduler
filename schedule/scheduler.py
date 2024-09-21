@@ -1,184 +1,144 @@
-import numpy as np
-from typing import Dict, List, Tuple, Union
-from timetable.schedule.models import Availability, AvailabilityStatus, ClassSubject
 import random
+from datetime import timedelta
+from typing import List, Tuple
+
+from django.db.models import Q
+
+from .models import Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule
 
 
 class SchedulingService:
-    def __init__(self, num_days: int = 6):  # Default to 6 if not provided
+    def __init__(self, num_days: int = 6):
         self.num_days = num_days
         self.time_slots = 8  # 9 AM to 5 PM, 1-hour slots
         self.teachers = {}
         self.classes = {}
-        self.schedule = []  # Initialize the schedule attribute
+        self.schedule = []
+        print("DEBUG: TimetableGenerator initialized")
 
-    def prepare_data(self, class_data: Dict[str, Dict[str, int]]):
-        teachers = set()
-        for class_teachers in class_data.values():
-            teachers.update(class_teachers.keys())
+    def prepare_data(self):
+        print("DEBUG: Preparing data")
+        # Fetch all ClassSubject entries
+        class_subjects = ClassSubject.objects.all()
 
-        self.teachers = {teacher: np.zeros((self.num_days, self.time_slots), dtype=bool) for teacher in teachers}
-        self.classes = {class_name: np.zeros((self.num_days, self.time_slots), dtype=bool) for class_name in
-                        class_data.keys()}
+        # Prepare data structures
+        for cs in class_subjects:
+            if cs.class_name.name not in self.classes:
+                self.classes[cs.class_name.name] = {}
+            self.classes[cs.class_name.name][cs.teacher.name] = cs.number_of_lectures
+
+            if cs.teacher.name not in self.teachers:
+                self.teachers[cs.teacher.name] = {}
+
+        print(f"DEBUG: Prepared data - Classes: {self.classes}, Teachers: {self.teachers}")
 
     def is_slot_available(self, day: int, time: int, teacher: str, class_name: str) -> bool:
-        # Mapping time integers to the correct slot fields in the Availability model
-        slot_map = {
-            0: 'slot_9_10',
-            1: 'slot_10_11',
-            2: 'slot_11_12',
-            3: 'slot_12_1',
-            4: 'slot_1_2',
-            5: 'slot_2_3',
-            6: 'slot_3_4',
-            7: 'slot_4_5',
-        }
-
-        # Get the slot field for the provided time
-        slot_field = slot_map.get(time)
-
-        if not slot_field:
-            raise ValueError("Invalid time slot. Please provide a time between 9 and 16.")
-
+        print(f"DEBUG: Checking availability for day {day}, time {time}, teacher {teacher}, class {class_name}")
         # Check teacher availability
         try:
-            teacher_availability = Availability.objects.get(teacher__name=teacher, day=day)
-            teacher_slot_status = getattr(teacher_availability, slot_field)
-
-            if teacher_slot_status == AvailabilityStatus.NOT_AVAILABLE:
+            teacher_obj = Teacher.objects.get(name=teacher)
+            availability = Availability.objects.get(teacher=teacher_obj, day=day)
+            slot_field = f'slot_{time + 9}_{time + 10}'
+            if getattr(availability, slot_field) == AvailabilityStatus.NOT_AVAILABLE:
+                print(f"DEBUG: Teacher {teacher} not available")
                 return False
-        except Availability.DoesNotExist:
-            # If no availability is defined, assume the teacher is not available
+        except (Teacher.DoesNotExist, Availability.DoesNotExist):
+            print(f"DEBUG: No availability data for teacher {teacher}")
+            # If no availability is defined, assume the teacher is available
+            pass
+
+        # Check if the slot is already booked
+        existing_schedule = Schedule.objects.filter(
+            Q(class_subject__teacher__name=teacher) | Q(class_subject__class_name__name=class_name),
+            day=day,
+            hour=time + 9
+        )
+        if existing_schedule.exists():
+            print(f"DEBUG: Slot already booked")
             return False
 
-        # Check class availability (assumed to be stored in a similar way)
-        try:
-            class_availability = Availability.objects.get(class_name=class_name, day=day)
-            class_slot_status = getattr(class_availability, slot_field)
-
-            if class_slot_status == AvailabilityStatus.NOT_AVAILABLE:
-                return False
-        except Availability.DoesNotExist:
-            # If no availability is defined for the class, assume it is not available
-            return False
-
-        # If both the teacher and class are available, return True
+        print(f"DEBUG: Slot is available")
         return True
 
-    def book_slot(self, day: int, time: int, teacher: str, class_name: str):
-        self.teachers[teacher][day, time] = True
-        self.classes[class_name][day, time] = True
+    def book_slot(self, day: int, time: int, class_subject: ClassSubject):
+        print(f"DEBUG: Booking slot for day {day}, time {time}, class subject {class_subject}")
+        Schedule.objects.create(
+            class_subject=class_subject,
+            day=day,
+            hour=time + 9,
+            duration=timedelta(hours=1)
+        )
 
-    def has_teacher_scheduled_class(self, day: int, teacher_index: int, class_name: str) -> bool:
-        # Check if the teacher has already been scheduled for this class on the given day
-        for time in range(self.time_slots):
-            scheduled_class_info = self.schedule[teacher_index][day][time]
-            
-            if isinstance(scheduled_class_info, tuple) and len(scheduled_class_info) >= 2:
-                scheduled_class, _ = scheduled_class_info  # Unpack only the first two values
-            else:
-                scheduled_class = None  # Handle cases where the structure is unexpected
+    def has_teacher_scheduled_class(self, day: int, teacher: str, class_name: str) -> bool:
+        print(f"DEBUG: Checking if teacher {teacher} is already scheduled for class {class_name} on day {day}")
+        exists = Schedule.objects.filter(
+            class_subject__teacher__name=teacher,
+            class_subject__class_name__name=class_name,
+            day=day
+        ).exists()
+        print(f"DEBUG: Teacher already scheduled: {exists}")
+        return exists
 
-            if scheduled_class == class_name:
-                return True
-        return False
+    def generate_timetable(self):
+        print("DEBUG: Starting timetable generation")
+        self.prepare_data()
 
-    def generate_schedule(self) -> List[List[List[Union[str, Tuple[str, str]]]]]:
-        # Retrieve class data from the ClassSubject model
-        class_data = {}
-        class_subjects = ClassSubject.objects.select_related('class_name', 'teacher').all()
+        for class_name, teachers in self.classes.items():
+            for teacher, num_lectures in teachers.items():
+                print(f"DEBUG: Scheduling for class {class_name}, teacher {teacher}, {num_lectures} lectures")
+                class_subject = ClassSubject.objects.get(
+                    class_name__name=class_name,
+                    teacher__name=teacher
+                )
+                lectures_scheduled = 0
+                attempts = 0
+                max_attempts = 100  # Prevent infinite loop
+                while lectures_scheduled < num_lectures and attempts < max_attempts:
+                    day = random.randint(0, self.num_days - 1)
+                    time = random.randint(0, self.time_slots - 1)
 
-        for class_subject in class_subjects:
-            class_name = class_subject.class_name.name
-            teacher_name = class_subject.teacher.name
-            sessions_per_week = class_subject.number_of_lectures
+                    if (self.is_slot_available(day, time, teacher, class_name) and
+                            not self.has_teacher_scheduled_class(day, teacher, class_name)):
+                        self.book_slot(day, time, class_subject)
+                        lectures_scheduled += 1
+                        print(f"DEBUG: Scheduled lecture {lectures_scheduled} for {class_name} with {teacher}")
+                    attempts += 1
 
-            if class_name not in class_data:
-                class_data[class_name] = {}
+                if lectures_scheduled < num_lectures:
+                    print(
+                        f"WARNING: Could not schedule all lectures for {class_name} with {teacher}. Scheduled {lectures_scheduled}/{num_lectures}")
 
-            class_data[class_name][teacher_name] = sessions_per_week
+        print("DEBUG: Timetable generation complete")
+        return self.get_schedule()
 
-        self.prepare_data(class_data)
+    def get_schedule(self) -> List[List[List[Tuple[str, str, str]]]]:
+        print("DEBUG: Fetching schedule from database")
+        schedule: List[List[List[Tuple[str, str, str]]]] = [[[] for _ in range(self.time_slots)] for _ in
+                                                            range(self.num_days)]
 
-        # Get unique teachers
-        unique_teachers = list({teacher for teachers in class_data.values() for teacher in teachers.keys()})
+        for entry in Schedule.objects.all():
+            day = entry.day
+            time = entry.hour - 9  # Convert back to 0-based index
+            class_name = entry.class_subject.class_name.name
+            subject = entry.class_subject.subject.name
+            teacher = entry.class_subject.teacher.name
 
-        # Get unique classes
-        unique_classes = list(class_data.keys())  # Extract unique class names
+            schedule[day][time].append((class_name, subject, teacher))
 
-        # Initialize a 3D array for the schedule based on unique teachers and classes
-        self.schedule = [[["Free" for _ in range(self.time_slots)] for _ in range(self.num_days)] for _ in
-                         range(len(unique_teachers) + len(unique_classes))]
+        print(f"DEBUG: Schedule fetched: {schedule}")
+        return schedule
 
-        # Schedule classes for each teacher
-        for class_name, teacher_info in class_data.items():
-            for teacher, sessions_per_week in teacher_info.items():
-                sessions_scheduled = 0
+    def print_timetable(self):
+        print("DEBUG: Printing timetable")
+        schedule = self.get_schedule()
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        times = ['9-10', '10-11', '11-12', '12-1', '1-2', '2-3', '3-4', '4-5']
 
-                # Get the index of the teacher for the schedule array
-                teacher_index = unique_teachers.index(teacher)
-
-                while sessions_scheduled < sessions_per_week:
-                    # Randomly shuffle the days and time slots
-                    days = list(range(self.num_days))
-                    times = list(range(self.time_slots))
-                    random.shuffle(days)
-                    random.shuffle(times)
-
-                    scheduled = False
-                    for day in days:
-                        if self.has_teacher_scheduled_class(day, teacher_index, class_name):
-                            continue  # Skip if the teacher already has a session for this class on the same day
-
-                        for time in times:
-                            if self.is_slot_available(day, time, teacher, class_name):
-                                # Store class and teacher with a label
-                                self.schedule[teacher_index][day][time] = (class_name, teacher)  # Store class and teacher
-                                sessions_scheduled += 1
-                                scheduled = True
-                                print(f"Scheduled {class_name} with {teacher} on day {day}, time {time}")
-                                # Break inner loops when required sessions are scheduled
-                                if sessions_scheduled >= sessions_per_week:
-                                    break
-                        if sessions_scheduled >= sessions_per_week or scheduled:
-                            break
-                    if sessions_scheduled >= sessions_per_week:
-                        break
-
-        # Call print_all_timetables after generating the schedule
-        print_all_timetables(self.schedule, unique_teachers, class_data)
-
-        return self.schedule
-
-
-def print_all_timetables(schedule, unique_teachers, class_data):
-    # Print timetable for each teacher
-    for teacher_index, teacher in enumerate(unique_teachers):
-        print(f"Timetable for {teacher}:")
-        for day in range(len(schedule[teacher_index])):
-            print(f"  Day {day + 1}:")
-            for time in range(len(schedule[teacher_index][day])):
-                class_info = schedule[teacher_index][day][time]
-                if class_info:
-                    class_name, teacher_name = class_info
-                    print(f"    Time Slot {time + 1}: {class_name} with {teacher_name}")
+        for day_index, day_schedule in enumerate(schedule):
+            print(f"\n{days[day_index]}:")
+            for time_index, slots in enumerate(day_schedule):
+                if slots:
+                    for class_name, subject, teacher in slots:
+                        print(f"  {times[time_index]}: {class_name} - {subject} - {teacher}")
                 else:
-                    print(f"    Time Slot {time + 1}: Free")
-        print()  # Add a blank line between teachers
-
-    # Print timetable for each class
-    for class_name in class_data.keys():
-        print(f"Timetable for {class_name}:")
-        for day in range(len(schedule[0])):  # Iterate through days
-            print(f"  Day {day + 1}:")
-            for time in range(len(schedule)):  # Iterate through teachers
-                class_found = False
-                for teacher_index, teacher in enumerate(unique_teachers):
-                    class_info = schedule[teacher_index][day][time]
-                    if class_info and class_info[0] == class_name:
-                        print(f"    Time Slot {time + 1}: {class_name} with {teacher}")
-                        class_found = True
-                        break
-                if not class_found:
-                    print(f"    Time Slot {time + 1}: Free")
-        print()  # Add a blank line after each class timetable
+                    print(f"  {times[time_index]}: Free")

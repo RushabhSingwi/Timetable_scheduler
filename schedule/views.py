@@ -1,11 +1,15 @@
-from django.http import JsonResponse
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from datetime import timedelta
+
+from django.shortcuts import render
 from rest_framework import status
-from .models import Teacher, Class, Schedule
-from .serializers import ScheduleSerializer, TeacherSerializer, ClassSubjectSerializer, \
-    SubjectSerializer, ClassSerializer
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import ClassSubject
 from .scheduler import SchedulingService
+from .serializers import TeacherSerializer, ClassSubjectSerializer, \
+    SubjectSerializer, ClassSerializer, BookSlotSerializer
+
 
 class TeacherCreateView(APIView):
     def post(self, request):
@@ -47,14 +51,45 @@ class ClassSubjectCreateView(APIView):
 
 class GenerateScheduleView(APIView):
     def get(self, request):
-        # Get num_days from query parameters, default to 6 if not provided
-        num_days = int(request.GET.get('num_days', 6))  # Convert to int, default to 6
+        num_days = int(request.GET.get('num_days', 6))
 
-        # Instantiate the scheduling service
+        # Your existing code to get the schedule
         scheduling_service = SchedulingService(num_days)
+        schedule = scheduling_service.generate_timetable()
 
-        # Call the generate_schedule method
-        schedule = scheduling_service.generate_schedule()
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        times = ['9-10', '10-11', '11-12', '12-1', '1-2', '2-3', '3-4', '4-5']
 
-        # Return the schedule as a JSON response
-        return JsonResponse({"schedule": schedule})
+        class_schedules = {}
+
+        for day_index, day_schedule in enumerate(schedule):
+            for time_index, slots in enumerate(day_schedule):
+                for class_name, subject, teacher in slots:
+                    if class_name not in class_schedules:
+                        class_schedules[class_name] = [["Free" for _ in times] for _ in days]
+                    class_schedules[class_name][day_index][time_index] = f"{subject} - {teacher}"
+
+        # Prepare days with indices
+        indexed_days = list(enumerate(days))
+
+        context = {
+            'class_schedules': class_schedules,
+            'indexed_days': indexed_days,
+            'times': times,
+        }
+
+        return render(request, 'timetable.html', context)
+
+
+class BookSlotView(APIView):
+    def post(self, request):
+        serializer = BookSlotSerializer(data=request.data)
+
+        # Validate incoming data
+        if serializer.is_valid():
+            # Create the schedule slot using validated data
+            schedule = serializer.save()
+            return Response({"message": "Slot booked successfully"}, status=status.HTTP_201_CREATED)
+
+        # Return errors if the data is invalid
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

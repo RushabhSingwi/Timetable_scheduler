@@ -60,13 +60,13 @@ class SchedulingService:
         print(f"DEBUG: Slot is available")
         return True
 
-    def book_slot(self, day: int, time: int, class_subject: ClassSubject):
+    def book_slot(self, day: int, time: int, class_subject: ClassSubject, duration: timedelta = timedelta(hours=1)):
         print(f"DEBUG: Booking slot for day {day}, time {time}, class subject {class_subject}")
         Schedule.objects.create(
             class_subject=class_subject,
             day=day,
             hour=time + 9,
-            duration=timedelta(hours=1)
+            duration=duration
         )
 
     def has_teacher_scheduled_class(self, day: int, teacher: str, class_name: str) -> bool:
@@ -134,11 +134,25 @@ class SchedulingService:
         days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
         times = ['9-10', '10-11', '11-12', '12-1', '1-2', '2-3', '3-4', '4-5']
 
+        # Dictionary to hold class schedules
+        class_schedules = {}
+
+        # Populate the class schedules
         for day_index, day_schedule in enumerate(schedule):
-            print(f"\n{days[day_index]}:")
             for time_index, slots in enumerate(day_schedule):
-                if slots:
-                    for class_name, subject, teacher in slots:
-                        print(f"  {times[time_index]}: {class_name} - {subject} - {teacher}")
-                else:
-                    print(f"  {times[time_index]}: Free")
+                for class_name, subject, teacher in slots:
+                    if class_name not in class_schedules:
+                        class_schedules[class_name] = [["Free" for _ in times] for _ in days]
+                    class_schedules[class_name][day_index][time_index] = f"{subject} - {teacher}"
+
+        # Print timetable for each class
+        for class_name, timetable in class_schedules.items():
+            print(f"\nTimetable for {class_name}:")
+            print("    ", end="")
+            print(" | ".join(times))  # Print time slots header
+            print("-" * (len(times) * 12))  # Print a separator line
+
+            for day_index, day in enumerate(days):
+                print(f"{day:8} | ", end="")  # Print day header
+                print(" | ".join(timetable[day_index]))  # Print each day's timetable
+

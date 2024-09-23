@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Class Timetables</h1>
+
+    {% for class_name, timetable in class_schedules.items %}
+        <h2>Timetable for {{ class_name }}</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    {% for time in times %}
+                        <th>{{ time }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for day_index, day in indexed_days %}
+                    <tr>
+                        <td>{{ day }}</td>
+                        {% for time_index in forloop.counter0 %}
+                            <td>{{ timetable[day_index][time_index] }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <br>
+    {% endfor %}
+</body>
+</html>

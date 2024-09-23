@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import GenerateScheduleView, TeacherCreateView, ClassSubjectCreateView, SubjectCreateView, ClassCreateView
+from .views import (GenerateScheduleView, TeacherCreateView, ClassSubjectCreateView, SubjectCreateView, ClassCreateView,
+                    BookSlotView)
 
 urlpatterns = [
     path('generate-schedule/', GenerateScheduleView.as_view(), name='generate-schedule'),
@@ -7,4 +8,5 @@ urlpatterns = [
     path('add-class-subject/', ClassSubjectCreateView.as_view(), name='add-class-subject'),
     path('add-subject/', SubjectCreateView.as_view(), name='add-subject'),
     path('add-class/', ClassCreateView.as_view(), name='add-class'),
+    path('book-slot/', BookSlotView.as_view(), name='book-slot')
 ]

@@ -60,14 +60,16 @@ class SchedulingService:
         print(f"DEBUG: Slot is available")
         return True
 
-    def book_slot(self, day: int, time: int, class_subject: ClassSubject, duration: timedelta = timedelta(hours=1)):
+    def book_slot(self, day: int, time: int, class_subject: ClassSubject, duration: int):
         print(f"DEBUG: Booking slot for day {day}, time {time}, class subject {class_subject}")
-        Schedule.objects.create(
-            class_subject=class_subject,
-            day=day,
-            hour=time + 9,
-            duration=duration
-        )
+        # Loop to book consecutive time slots based on duration
+        for slot_offset in range(duration):
+            Schedule.objects.create(
+                class_subject=class_subject,
+                day=day,
+                hour=(time + slot_offset) + 9,  # Adjust to the actual time format
+                duration=timedelta(hours=1)  # Each slot is booked for 1 hour
+            )
 
     def has_teacher_scheduled_class(self, day: int, teacher: str, class_name: str) -> bool:
         print(f"DEBUG: Checking if teacher {teacher} is already scheduled for class {class_name} on day {day}")
@@ -90,6 +92,10 @@ class SchedulingService:
                     class_name__name=class_name,
                     teacher__name=teacher
                 )
+
+                # Set the subject duration from the Subject model (as an integer)
+                subject_duration = class_subject.subject.duration  # Duration in hours
+
                 lectures_scheduled = 0
                 attempts = 0
                 max_attempts = 100  # Prevent infinite loop
@@ -97,16 +103,32 @@ class SchedulingService:
                     day = random.randint(0, self.num_days - 1)
                     time = random.randint(0, self.time_slots - 1)
 
-                    if (self.is_slot_available(day, time, teacher, class_name) and
-                            not self.has_teacher_scheduled_class(day, teacher, class_name)):
-                        self.book_slot(day, time, class_subject)
+                    # Assuming 'subject_duration' is in hours (e.g., 1, 2, etc.)
+                    required_slots = subject_duration  # Number of consecutive slots needed
+
+                    # Check availability for the required consecutive slots
+                    slots_available = True
+                    for slot_offset in range(required_slots):
+                        if time + slot_offset >= self.time_slots or not self.is_slot_available(day, time + slot_offset,
+                                                                                               teacher, class_name):
+                            slots_available = False
+                            break
+
+                    # If all required consecutive slots are available
+                    if slots_available and not self.has_teacher_scheduled_class(day, teacher, class_name):
+                        # Book the required consecutive slots
+                        self.book_slot(day, time, class_subject, subject_duration)
                         lectures_scheduled += 1
-                        print(f"DEBUG: Scheduled lecture {lectures_scheduled} for {class_name} with {teacher}")
+                        print(
+                            f"DEBUG: Scheduled {subject_duration}-hour lecture {lectures_scheduled} for {class_name}"
+                            f" with {teacher}")
+
                     attempts += 1
 
                 if lectures_scheduled < num_lectures:
                     print(
-                        f"WARNING: Could not schedule all lectures for {class_name} with {teacher}. Scheduled {lectures_scheduled}/{num_lectures}")
+                        f"WARNING: Could not schedule all lectures for {class_name} with {teacher}."
+                        f" Scheduled {lectures_scheduled}/{num_lectures}")
 
         print("DEBUG: Timetable generation complete")
         return self.get_schedule()
@@ -155,4 +177,3 @@ class SchedulingService:
             for day_index, day in enumerate(days):
                 print(f"{day:8} | ", end="")  # Print day header
                 print(" | ".join(timetable[day_index]))  # Print each day's timetable
-

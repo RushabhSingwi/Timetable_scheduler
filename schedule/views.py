@@ -1,14 +1,16 @@
-from datetime import timedelta
-
 from django.shortcuts import render
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 
-from .models import ClassSubject
 from .scheduler import SchedulingService
 from .serializers import TeacherSerializer, ClassSubjectSerializer, \
     SubjectSerializer, ClassSerializer, BookSlotSerializer
+
+
+# def frontend(request):
+#     return render(request, '../static/frontend/index.html')
 
 
 class TeacherCreateView(APIView):
@@ -60,22 +62,22 @@ class GenerateScheduleView(APIView):
         days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
         times = ['9-10', '10-11', '11-12', '12-1', '1-2', '2-3', '3-4', '4-5']
 
-        class_schedules = {}
-
+        # Combine days and time slots for easier access in the template
+        timetable = []
         for day_index, day_schedule in enumerate(schedule):
-            for time_index, slots in enumerate(day_schedule):
-                for class_name, subject, teacher in slots:
-                    if class_name not in class_schedules:
-                        class_schedules[class_name] = [["Free" for _ in times] for _ in days]
-                    class_schedules[class_name][day_index][time_index] = f"{subject} - {teacher}"
-
-        # Prepare days with indices
-        indexed_days = list(enumerate(days))
+            day_data = []
+            for time_index, time_slot in enumerate(day_schedule):
+                day_data.append({
+                    'time': times[time_index],
+                    'classes': time_slot  # This is the list of classes in the current slot
+                })
+            timetable.append({
+                'day': days[day_index],
+                'slots': day_data
+            })
 
         context = {
-            'class_schedules': class_schedules,
-            'indexed_days': indexed_days,
-            'times': times,
+            'timetable': timetable
         }
 
         return render(request, 'timetable.html', context)
@@ -93,3 +95,9 @@ class BookSlotView(APIView):
 
         # Return errors if the data is invalid
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def example_view(request):
+    data = {"message": "Hello from Django!"}
+    return Response(data)

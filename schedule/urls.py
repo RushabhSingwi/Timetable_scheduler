@@ -3,6 +3,7 @@ from .views import (GenerateScheduleView, TeacherCreateView, ClassSubjectCreateV
                     BookSlotView)
 
 urlpatterns = [
+    # path('', frontend, name='frontend'),
     path('generate-schedule/', GenerateScheduleView.as_view(), name='generate-schedule'),
     path('teachers/', TeacherCreateView.as_view(), name='teacher-create'),
     path('add-class-subject/', ClassSubjectCreateView.as_view(), name='add-class-subject'),

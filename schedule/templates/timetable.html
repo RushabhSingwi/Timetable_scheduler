@@ -3,48 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timetable</title>
+    <title>Class Timetable</title>
     <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
         }
-        th, td {
+        .timetable {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .timetable th, .timetable td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 12px;
             text-align: center;
         }
-        th {
+        .timetable th {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+        }
+        .timetable tr:nth-child(even) {
             background-color: #f2f2f2;
+        }
+        .class-info {
+            font-size: 12px;
+            margin: 2px 0;
+        }
+        .class-name {
+            font-weight: bold;
+        }
+        .teacher-name {
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <h1>Class Timetables</h1>
 
-    {% for class_name, timetable in class_schedules.items %}
-        <h2>Timetable for {{ class_name }}</h2>
-        <table>
-            <thead>
+    <table class="timetable">
+        <thead>
+            <tr>
+                <th>Time</th>
+                {% for day in timetable %}
+                    <th>{{ day.day }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for time_slot in timetable.0.slots %}
                 <tr>
-                    <th>Day</th>
-                    {% for time in times %}
-                        <th>{{ time }}</th>
+                    <td>{{ time_slot.time }}</td>
+                    {% for day in timetable %}
+                        <td>
+                            {% for class_data in day.slots.forloop.counter0.classes %}
+                                <div class="class-info">
+                                    <span class="class-name">{{ class_data.1 }}</span><br>
+                                    <span class="teacher-name">{{ class_data.2 }}</span><br>
+                                    <span class="room">Room: {{ class_data.0 }}</span>
+                                </div>
+                            {% endfor %}
+                        </td>
                     {% endfor %}
                 </tr>
-            </thead>
-            <tbody>
-                {% for day_index, day in indexed_days %}
-                    <tr>
-                        <td>{{ day }}</td>
-                        {% for time_index in forloop.counter0 %}
-                            <td>{{ timetable[day_index][time_index] }}</td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br>
-    {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+
 </body>
 </html>

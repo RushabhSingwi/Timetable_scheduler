@@ -12,7 +12,7 @@ class TeacherAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name')  # Show the 'id' and 'name' columns in the list view
+    list_display = ('id', 'name', 'duration')  # Show the 'id', 'name' and 'duration' columns in the list view
     search_fields = ('name',)  # Enable searching by the 'name' field
 
 

@@ -10,9 +10,15 @@ class Teacher(models.Model):
         return self.name
 
 
+class Classrooms(models.Model):
+    classroom_type = models.CharField(max_length=100)
+    number_of_classroom = models.IntegerField(blank=False, null=False)
+
+
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     duration = models.IntegerField(default=1)
+    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, default=1)
 
     def __str__(self):
         return self.name
@@ -69,8 +75,3 @@ class Schedule(models.Model):
     hour = models.IntegerField(blank=False, null=False)  # Representing hour in the 24-hour format
     # (9 = 9 AM, 10 = 10 AM, etc.)
     duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture
-
-
-class Classrooms(models.Model):
-    classroom_type = models.CharField(max_length=100)
-    number_of_classroom = models.IntegerField(blank=False, null=False)

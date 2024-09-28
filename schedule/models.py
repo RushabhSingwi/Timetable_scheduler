@@ -69,6 +69,32 @@ class Availability(models.Model):
                                 default=AvailabilityStatus.AVAILABLE)
 
 
+class ClassroomAvailability(models.Model):
+    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE)
+    day = models.IntegerField()  # Representing days of the week as integers
+
+    # Store availability for each hour as an enum
+    slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                 default=AvailabilityStatus.AVAILABLE)
+    slot_10_11 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_11_12 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_12_1 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                 default=AvailabilityStatus.AVAILABLE)
+    slot_1_2 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                default=AvailabilityStatus.AVAILABLE)
+    slot_2_3 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                default=AvailabilityStatus.AVAILABLE)
+    slot_3_4 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                default=AvailabilityStatus.AVAILABLE)
+    slot_4_5 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                default=AvailabilityStatus.AVAILABLE)
+
+    def __str__(self):
+        return f'{self.classroom.classroom_type} - Day {self.day}'
+
+
 class Schedule(models.Model):
     class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE, blank=False, null=False)
     day = models.IntegerField(blank=False, null=False)  # Representing days of the week as integers

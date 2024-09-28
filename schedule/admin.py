@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Teacher, Subject, ClassSubject, Class
+from .models import Teacher, Subject, ClassSubject, Class, Classrooms
 
 
 # Register your models here.
@@ -28,3 +28,8 @@ class ClassSubjectAdmin(admin.ModelAdmin):
     search_fields = (
         'class_name__name', 'subject__name', 'teacher__name')  # Enable searching by class, subject, and teacher names
     list_filter = ('class_name', 'subject', 'teacher')  # Filter by class, subject, and teacher
+
+
+@admin.register(Classrooms)
+class ClassroomsAdmin(admin.ModelAdmin):
+    list_display = ['classroom_type', 'number_of_classroom']

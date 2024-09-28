@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 
 from .scheduler import SchedulingService
 from .serializers import TeacherSerializer, ClassSubjectSerializer, \
-    SubjectSerializer, ClassSerializer, BookSlotSerializer
+    SubjectSerializer, ClassSerializer, BookSlotSerializer, ClassroomsSerializer
 
 
 # def frontend(request):
@@ -97,7 +97,20 @@ class BookSlotView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ClassroomCreateView(APIView):
+    def post(self, request):
+        serializer = ClassroomsSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 @api_view(['GET'])
 def example_view(request):
     data = {"message": "Hello from Django!"}
     return Response(data)
+
+

@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from rest_framework import serializers
-from .models import Teacher, Class, Schedule, ClassSubject, Subject
+from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms
 
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -58,3 +58,9 @@ class BookSlotSerializer(serializers.Serializer):
             duration=timedelta(hours=duration)
         )
         return schedule
+
+
+class ClassroomsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Classrooms
+        fields = ['classroom_type', 'number_of_classroom']

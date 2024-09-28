@@ -9,6 +9,7 @@ class Teacher(models.Model):
     def __str__(self):
         return self.name
 
+
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     duration = models.IntegerField(default=1)
@@ -16,11 +17,13 @@ class Subject(models.Model):
     def __str__(self):
         return self.name
 
+
 class Class(models.Model):
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
+
 
 class ClassSubject(models.Model):
     class_name = models.ForeignKey(Class, on_delete=models.CASCADE, blank=False, null=False)
@@ -30,6 +33,7 @@ class ClassSubject(models.Model):
 
     def __str__(self):
         return self.class_name.name + self.subject.name
+
 
 class AvailabilityStatus(models.TextChoices):
     AVAILABLE = 'A', 'Available'
@@ -65,3 +69,8 @@ class Schedule(models.Model):
     hour = models.IntegerField(blank=False, null=False)  # Representing hour in the 24-hour format
     # (9 = 9 AM, 10 = 10 AM, etc.)
     duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture
+
+
+class Classrooms(models.Model):
+    classroom_type = models.CharField(max_length=100)
+    number_of_classroom = models.IntegerField(blank=False, null=False)

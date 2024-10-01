@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from rest_framework import serializers
-from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms
+from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms, ClassroomType
 
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -60,7 +60,23 @@ class BookSlotSerializer(serializers.Serializer):
         return schedule
 
 
+class ClassroomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClassroomType
+        fields = ['id', 'name']
+
+
 class ClassroomsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Classrooms
-        fields = ['classroom_type', 'number_of_classroom']
+        fields = ['id', 'classroom_type']
+
+
+class ClassroomBookingSerializer(serializers.Serializer):
+    classroom_id = serializers.IntegerField()
+    hour = serializers.IntegerField()
+
+    def validate_hour(self, value):
+        if value < 9 or value > 16:
+            raise serializers.ValidationError("Hour must be between 9 and 16 (inclusive).")
+        return value

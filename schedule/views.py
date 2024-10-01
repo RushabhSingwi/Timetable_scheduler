@@ -4,9 +4,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 
+from .models import ClassroomType, Classrooms
 from .scheduler import SchedulingService
 from .serializers import TeacherSerializer, ClassSubjectSerializer, \
-    SubjectSerializer, ClassSerializer, BookSlotSerializer, ClassroomsSerializer
+    SubjectSerializer, ClassSerializer, BookSlotSerializer, ClassroomsSerializer, ClassroomTypeSerializer, \
+    ClassroomBookingSerializer
 
 
 # def frontend(request):
@@ -106,6 +108,49 @@ class ClassroomCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class ClassroomTypeCreateView(APIView):
+
+    def post(self, request):
+        serializer = ClassroomTypeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Create a new classroom type
+        classroom_type = serializer.save()
+        return Response({"message": "Classroom type created successfully.", "id": classroom_type.id},
+                        status=status.HTTP_201_CREATED)
+
+
+class ClassroomsCreateView(APIView):
+
+    def post(self, request):
+        serializer = ClassroomsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Create a new classroom instance
+        classroom = serializer.save()
+        return Response({"message": "Classroom created successfully.", "id": classroom.id},
+                        status=status.HTTP_201_CREATED)
+
+
+class ClassroomBookingView(APIView):
+    serializer_class = ClassroomBookingSerializer
+
+    def post(self, request):
+        serializer = ClassroomBookingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        classroom_id = serializer.validated_data['classroom_id']
+        hour = serializer.validated_data['hour']
+
+        try:
+            classroom = Classrooms.objects.get(id=classroom_id)
+            classroom.book_classroom(hour)
+            return Response({"message": "Classroom booked successfully."}, status=status.HTTP_201_CREATED)
+        except Classrooms.DoesNotExist:
+            return Response({"error": "Classroom not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

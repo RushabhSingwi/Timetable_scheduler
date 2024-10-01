@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (GenerateScheduleView, TeacherCreateView, ClassSubjectCreateView, SubjectCreateView, ClassCreateView,
-                    BookSlotView)
+                    BookSlotView, ClassroomTypeCreateView, ClassroomsCreateView, ClassroomBookingView)
 
 urlpatterns = [
     # path('', frontend, name='frontend'),
@@ -9,5 +9,8 @@ urlpatterns = [
     path('add-class-subject/', ClassSubjectCreateView.as_view(), name='add-class-subject'),
     path('add-subject/', SubjectCreateView.as_view(), name='add-subject'),
     path('add-class/', ClassCreateView.as_view(), name='add-class'),
-    path('book-slot/', BookSlotView.as_view(), name='book-slot')
+    path('book-slot/', BookSlotView.as_view(), name='book-slot'),
+    path('classroom-types/', ClassroomTypeCreateView.as_view(), name='classroom-type-create'),
+    path('classrooms/', ClassroomsCreateView.as_view(), name='classroom-create'),
+    path('book-classroom/', ClassroomBookingView.as_view(), name='book-classroom'),
 ]

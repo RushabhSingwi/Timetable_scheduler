@@ -32,4 +32,4 @@ class ClassSubjectAdmin(admin.ModelAdmin):
 
 @admin.register(Classrooms)
 class ClassroomsAdmin(admin.ModelAdmin):
-    list_display = ['classroom_type', 'number_of_classroom']
+    list_display = ['classroom_type']

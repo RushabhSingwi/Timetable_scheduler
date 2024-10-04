@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 from django.db.models import Q
 
-from .models import Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule
+from .models import Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms
 
 
 class SchedulingService:
@@ -25,14 +25,13 @@ class SchedulingService:
         for cs in class_subjects:
             if cs.class_name.name not in self.classes:
                 self.classes[cs.class_name.name] = {}
-            self.classes[cs.class_name.name][cs.teacher.name] = cs.number_of_lectures
-
-            if cs.teacher.name not in self.teachers:
-                self.teachers[cs.teacher.name] = {}
+            if cs.teacher.name not in self.classes[cs.class_name.name]:
+                self.classes[cs.class_name.name][cs.teacher.name] = []
+            self.classes[cs.class_name.name][cs.teacher.name].append(cs)
 
         print(f"DEBUG: Prepared data - Classes: {self.classes}, Teachers: {self.teachers}")
 
-    def is_slot_available(self, day: int, time: int, teacher: str, class_name: str) -> bool:
+    def is_slot_available(self, day: int, time: int, teacher: str, class_name: str, classroom: Classrooms) -> bool:
         print(f"DEBUG: Checking availability for day {day}, time {time}, teacher {teacher}, class {class_name}")
         # Check teacher availability
         try:
@@ -47,6 +46,11 @@ class SchedulingService:
             # If no availability is defined, assume the teacher is available
             pass
 
+            # Check classroom availability
+            if not classroom.check_availability(time + 9):
+                print(f"DEBUG: Classroom {classroom} not available")
+                return False
+
         # Check if the slot is already booked
         existing_schedule = Schedule.objects.filter(
             Q(class_subject__teacher__name=teacher) | Q(class_subject__class_name__name=class_name),
@@ -60,7 +64,7 @@ class SchedulingService:
         print(f"DEBUG: Slot is available")
         return True
 
-    def book_slot(self, day: int, time: int, class_subject: ClassSubject, duration: int):
+    def book_slot(self, day: int, time: int, class_subject: ClassSubject, duration: int, classroom: Classrooms):
         print(f"DEBUG: Booking slot for day {day}, time {time}, class subject {class_subject}")
         # Loop to book consecutive time slots based on duration
         for slot_offset in range(duration):
@@ -68,8 +72,10 @@ class SchedulingService:
                 class_subject=class_subject,
                 day=day,
                 hour=(time + slot_offset) + 9,  # Adjust to the actual time format
-                duration=timedelta(hours=1)  # Each slot is booked for 1 hour
+                duration=timedelta(hours=1),  # Each slot is booked for 1 hour
+                classroom=classroom
             )
+            classroom.book_classroom((time + slot_offset) + 9)
 
     def has_teacher_scheduled_class(self, day: int, teacher: str, class_name: str) -> bool:
         print(f"DEBUG: Checking if teacher {teacher} is already scheduled for class {class_name} on day {day}")
@@ -86,57 +92,55 @@ class SchedulingService:
         self.prepare_data()
 
         for class_name, teachers in self.classes.items():
-            for teacher, num_lectures in teachers.items():
-                print(f"DEBUG: Scheduling for class {class_name}, teacher {teacher}, {num_lectures} lectures")
-                class_subject = ClassSubject.objects.get(
-                    class_name__name=class_name,
-                    teacher__name=teacher
-                )
+            for teacher, class_subjects in teachers.items():
+                print(f"DEBUG: Scheduling for class {class_name}, teacher {teacher}, {len(class_subjects)} subjects")
 
-                # Set the subject duration from the Subject model (as an integer)
-                subject_duration = class_subject.subject.duration  # Duration in hours
+                for class_subject in class_subjects:
+                    subject_duration = class_subject.subject.duration
+                    required_classroom_type = class_subject.subject.classroom_type
+                    lectures_to_schedule = class_subject.number_of_lectures
 
-                lectures_scheduled = 0
-                attempts = 0
-                max_attempts = 100  # Prevent infinite loop
-                while lectures_scheduled < num_lectures and attempts < max_attempts:
-                    day = random.randint(0, self.num_days - 1)
-                    time = random.randint(0, self.time_slots - 1)
+                    lectures_scheduled = 0
+                    attempts = 0
+                    max_attempts = 100  # Prevent infinite loop
+                    while lectures_scheduled < lectures_to_schedule and attempts < max_attempts:
+                        day = random.randint(0, self.num_days - 1)
+                        time = random.randint(0, self.time_slots - 1)
 
-                    # Assuming 'subject_duration' is in hours (e.g., 1, 2, etc.)
-                    required_slots = subject_duration  # Number of consecutive slots needed
+                        # Get available classrooms of the required type
+                        available_classrooms = Classrooms.objects.filter(classroom_type=required_classroom_type)
 
-                    # Check availability for the required consecutive slots
-                    slots_available = True
-                    for slot_offset in range(required_slots):
-                        if time + slot_offset >= self.time_slots or not self.is_slot_available(day, time + slot_offset,
-                                                                                               teacher, class_name):
-                            slots_available = False
-                            break
+                        for classroom in available_classrooms:
+                            slots_available = True
+                            for slot_offset in range(subject_duration):
+                                if (time + slot_offset >= self.time_slots or
+                                        not self.is_slot_available(day, time + slot_offset,
+                                                                   teacher, class_name, classroom)):
+                                    slots_available = False
+                                    break
 
-                    # If all required consecutive slots are available
-                    if slots_available and not self.has_teacher_scheduled_class(day, teacher, class_name):
-                        # Book the required consecutive slots
-                        self.book_slot(day, time, class_subject, subject_duration)
-                        lectures_scheduled += 1
+                            if slots_available and not self.has_teacher_scheduled_class(day, teacher, class_name):
+                                self.book_slot(day, time, class_subject, subject_duration, classroom)
+                                lectures_scheduled += 1
+                                print(
+                                    f"DEBUG: Scheduled {subject_duration}-hour lecture {lectures_scheduled}"
+                                    f" for {class_name} with {teacher} in {classroom}")
+                                break
+
+                        attempts += 1
+
+                    if lectures_scheduled < lectures_to_schedule:
                         print(
-                            f"DEBUG: Scheduled {subject_duration}-hour lecture {lectures_scheduled} for {class_name}"
-                            f" with {teacher}")
-
-                    attempts += 1
-
-                if lectures_scheduled < num_lectures:
-                    print(
-                        f"WARNING: Could not schedule all lectures for {class_name} with {teacher}."
-                        f" Scheduled {lectures_scheduled}/{num_lectures}")
+                            f"WARNING: Could not schedule all lectures for {class_name} with {teacher}."
+                            f" Scheduled {lectures_scheduled}/{lectures_to_schedule}")
 
         print("DEBUG: Timetable generation complete")
         return self.get_schedule()
 
-    def get_schedule(self) -> List[List[List[Tuple[str, str, str]]]]:
+    def get_schedule(self) -> List[List[List[Tuple[str, str, str, str]]]]:
         print("DEBUG: Fetching schedule from database")
-        schedule: List[List[List[Tuple[str, str, str]]]] = [[[] for _ in range(self.time_slots)] for _ in
-                                                            range(self.num_days)]
+        schedule: List[List[List[Tuple[str, str, str, str]]]] = [[[] for _ in range(self.time_slots)] for _ in
+                                                                 range(self.num_days)]
 
         for entry in Schedule.objects.all():
             day = entry.day
@@ -144,10 +148,12 @@ class SchedulingService:
             class_name = entry.class_subject.class_name.name
             subject = entry.class_subject.subject.name
             teacher = entry.class_subject.teacher.name
+            classroom = entry.classroom.classroom_name
 
-            schedule[day][time].append((class_name, subject, teacher))
+            schedule[day][time].append((class_name, subject, teacher, classroom))
 
-        print(f"DEBUG: Schedule fetched: {schedule}")
+        print(f"DEBUG: Schedule Prepares")
+        print(f"Use print_timetable method to print the timetable")
         return schedule
 
     def print_timetable(self):
@@ -170,9 +176,9 @@ class SchedulingService:
         # Print timetable for each class
         for class_name, timetable in class_schedules.items():
             print(f"\nTimetable for {class_name}:")
-            print("    ", end="")
+            print("                ", end="")
             print(" | ".join(times))  # Print time slots header
-            print("-" * (len(times) * 12))  # Print a separator line
+            print("-" * (len(times) * 16))  # Print a separator line
 
             for day_index, day in enumerate(days):
                 print(f"{day:8} | ", end="")  # Print day header

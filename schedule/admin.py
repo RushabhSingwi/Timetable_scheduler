@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Teacher, Subject, ClassSubject, Class, Classrooms
+from .models import Teacher, Subject, ClassSubject, Class, Classrooms, Elective
 
 
 # Register your models here.
@@ -33,3 +33,9 @@ class ClassSubjectAdmin(admin.ModelAdmin):
 @admin.register(Classrooms)
 class ClassroomsAdmin(admin.ModelAdmin):
     list_display = ['classroom_type']
+
+
+@admin.register(Elective)
+class ElectiveAdmin(admin.ModelAdmin):
+    list_display = ('name', 'subject_code')  # Specify which fields to display in the list view
+    search_fields = ('name', 'subject_code')  # Allow searching by these fields

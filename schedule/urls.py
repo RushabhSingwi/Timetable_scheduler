@@ -1,6 +1,12 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+
 from .views import (GenerateScheduleView, TeacherCreateView, ClassSubjectCreateView, SubjectCreateView, ClassCreateView,
-                    BookSlotView, ClassroomTypeCreateView, ClassroomsCreateView, ClassroomBookingView)
+                    BookSlotView, ClassroomTypeCreateView, ClassroomsCreateView, ClassroomBookingView, ElectiveViewSet)
+
+router = DefaultRouter()
+router.register(r'electives', ElectiveViewSet, basename='elective')
+
 
 urlpatterns = [
     # path('', frontend, name='frontend'),
@@ -13,4 +19,6 @@ urlpatterns = [
     path('classroom-types/', ClassroomTypeCreateView.as_view(), name='classroom-type-create'),
     path('classrooms/', ClassroomsCreateView.as_view(), name='classroom-create'),
     path('book-classroom/', ClassroomBookingView.as_view(), name='book-classroom'),
+
+    path('electives', include(router.urls)),
 ]

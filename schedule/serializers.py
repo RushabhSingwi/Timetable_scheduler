@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from rest_framework import serializers
-from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms, ClassroomType
+from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms, ClassroomType, Elective
 
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -80,3 +80,16 @@ class ClassroomBookingSerializer(serializers.Serializer):
         if value < 9 or value > 16:
             raise serializers.ValidationError("Hour must be between 9 and 16 (inclusive).")
         return value
+
+
+class ElectiveSerializer(serializers.ModelSerializer):
+    class_pair = serializers.SlugRelatedField(
+        many=True, slug_field='name', queryset=Class.objects.all()
+    )
+    teacher_pair = serializers.SlugRelatedField(
+        many=True, slug_field='name', queryset=Teacher.objects.all()
+    )
+
+    class Meta:
+        model = Elective
+        fields = ['id', 'name', 'subject_code', 'class_pair', 'teacher_pair']

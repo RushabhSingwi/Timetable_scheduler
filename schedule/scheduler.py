@@ -2,10 +2,9 @@ import random
 from datetime import timedelta
 from typing import List, Tuple, Optional
 
-from django.db import transaction
 from django.db.models import Q
 
-from .models import (Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms, ClassroomType,
+from .models import (Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms,
                      Class)
 
 

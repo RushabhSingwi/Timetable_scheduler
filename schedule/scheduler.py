@@ -5,7 +5,7 @@ from typing import List, Tuple, Optional
 from django.db.models import Q
 
 from .models import (Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms,
-                     Class)
+                     Class, Elective)
 
 
 def book_slot(day: int, time: int, class_subject: Optional[ClassSubject], duration: int,
@@ -126,6 +126,59 @@ class SchedulingService:
     def generate_timetable(self):
         print("DEBUG: Starting timetable generation")
         self.prepare_data()
+
+        # Schedule electives
+        electives = Elective.objects.all()
+        for elective in electives:
+            print(f"DEBUG: Scheduling elective {elective.name}")
+
+            # Get all classes and teachers associated with this elective
+            classes = elective.class_pair.all()
+            teachers = elective.teacher_pair.all()
+
+            # Use the duration from the Elective model
+            elective_duration = elective.duration
+            lectures_to_schedule = elective.number_of_lectures
+
+            lectures_scheduled = 0
+            attempts = 0
+            max_attempts = 100
+
+            while lectures_scheduled < lectures_to_schedule and attempts < max_attempts:
+                day = random.randint(0, self.num_days - 1)
+                time = random.randint(0, self.time_slots - 1)
+
+                # Check if all classes and teachers are available
+                all_available = True
+                available_classrooms = {}
+                for class_obj in classes:
+                    # Get available classrooms of the type specified by the elective
+                    class_classrooms = Classrooms.objects.filter(classroom_type=elective.classroom_type)
+                    class_available_classrooms = [
+                        classroom for classroom in class_classrooms
+                        if all(self.is_slot_available(day, time, teacher, class_obj.name, classroom)
+                               for teacher in teachers)
+                    ]
+                    if not class_available_classrooms:
+                        all_available = False
+                        break
+                    available_classrooms[class_obj] = class_available_classrooms
+
+                if all_available:
+                    # Book the slot for all classes and teachers, assigning a classroom for each class
+                    for class_obj in classes:
+                        classroom = random.choice(available_classrooms[class_obj])
+                        for teacher in teachers:
+                            book_slot(day, time, elective, elective_duration, classroom, class_obj.name)
+                        print(f"DEBUG: Scheduled elective {elective.name} for class {class_obj.name} "
+                              f"on day {day} at time {time + 9} in classroom {classroom}")
+                    lectures_scheduled += 1
+
+                attempts += 1
+
+            if lectures_scheduled < lectures_to_schedule:
+                print(f"WARNING: Could not schedule all lectures for elective {elective.name}. "
+                      f"Scheduled {lectures_scheduled}/{lectures_to_schedule}")
 
         for class_name, teachers in self.classes.items():
 

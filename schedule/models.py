@@ -144,6 +144,9 @@ class Elective(models.Model):
     subject_code = models.CharField(max_length=20, blank=False, null=False)
     class_pair = models.ManyToManyField(Class, related_name='electives')
     teacher_pair = models.ManyToManyField(Teacher, related_name='elective_teacher')
+    duration = models.IntegerField(default=1)
+    classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
+    number_of_lectures = models.IntegerField(blank=False, null=False)
 
     def __str__(self):
         return self.subject_code+self.name

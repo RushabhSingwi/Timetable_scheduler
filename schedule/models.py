@@ -1,6 +1,23 @@
 from datetime import timedelta
 
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+
+class AvailabilityStatus(models.TextChoices):
+    AVAILABLE = 'A', 'Available'
+    NOT_AVAILABLE = 'N', 'Not Available'
+
+
+class DayOfWeek(models.IntegerChoices):
+    MONDAY = 1, 'Monday'
+    TUESDAY = 2, 'Tuesday'
+    WEDNESDAY = 3, 'Wednesday'
+    THURSDAY = 4, 'Thursday'
+    FRIDAY = 5, 'Friday'
+    SATURDAY = 6, 'Saturday'
+    SUNDAY = 7, 'Sunday'
 
 
 class Teacher(models.Model):
@@ -9,26 +26,46 @@ class Teacher(models.Model):
     def __str__(self):
         return self.name
 
-    def save(self, *args, **kwargs):
-        # Check if this is a new Teacher object (i.e., not already in the database)
-        is_new = self._state.adding
-        super(Teacher, self).save(*args, **kwargs)
+    def is_available(self, day: int, time: int) -> bool:
+        try:
+            availability = self.availabilities.get(day=day)
+            slot_field = f'slot_{time}_{time + 1}'
+            return getattr(availability, slot_field) == AvailabilityStatus.AVAILABLE
+        except TeacherAvailability.DoesNotExist:
+            return False
 
-        # If it's a new teacher, create Availability for each day
-        if is_new:
-            for day in range(1, 7):  # Assuming days 1 to 6 represent Monday to Saturday
-                Availability.objects.create(
-                    teacher=self,
-                    day=day,
-                    slot_9_10=AvailabilityStatus.AVAILABLE,
-                    slot_10_11=AvailabilityStatus.AVAILABLE,
-                    slot_11_12=AvailabilityStatus.AVAILABLE,
-                    slot_12_1=AvailabilityStatus.AVAILABLE,
-                    slot_1_2=AvailabilityStatus.AVAILABLE,
-                    slot_2_3=AvailabilityStatus.AVAILABLE,
-                    slot_3_4=AvailabilityStatus.AVAILABLE,
-                    slot_4_5=AvailabilityStatus.AVAILABLE,
-                )
+
+class TeacherAvailability(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='availabilities')
+    day = models.IntegerField(choices=DayOfWeek.choices)
+    slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
+    slot_10_11 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_11_12 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_12_13 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_13_14 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_14_15 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_15_16 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_16_17 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+
+    class Meta:
+        unique_together = ('teacher', 'day')
+
+    def __str__(self):
+        return f"{self.teacher.name}'s availability on {self.get_day_display()}"
+
+
+@receiver(post_save, sender=Teacher)
+def create_teacher_availability(instance, created):
+    if created:
+        for day in DayOfWeek:
+            TeacherAvailability.objects.create(teacher=instance, day=day)
 
 
 class ClassroomType(models.Model):
@@ -36,11 +73,6 @@ class ClassroomType(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class AvailabilityStatus(models.TextChoices):
-    AVAILABLE = 'A', 'Available'
-    NOT_AVAILABLE = 'N', 'Not Available'
 
 
 class Classrooms(models.Model):
@@ -96,7 +128,7 @@ class Subject(models.Model):
     subject_code = models.CharField(max_length=20, blank=False, null=False)
 
     def __str__(self):
-        return self.subject_code+self.name
+        return self.subject_code + self.name
 
 
 class Class(models.Model):
@@ -116,29 +148,6 @@ class ClassSubject(models.Model):
         return self.class_name.name + self.subject.name
 
 
-class Availability(models.Model):
-    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    day = models.IntegerField()  # Representing days of the week as integers
-
-    # Store availability for each hour as an enum
-    slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                 default=AvailabilityStatus.AVAILABLE)
-    slot_10_11 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_11_12 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_12_13 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_13_14 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_14_15 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_15_16 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-    slot_16_17 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                  default=AvailabilityStatus.AVAILABLE)
-
-
 class Elective(models.Model):
     name = models.CharField(max_length=100, blank=False, null=False)
     subject_code = models.CharField(max_length=20, blank=False, null=False)
@@ -149,10 +158,10 @@ class Elective(models.Model):
     number_of_lectures = models.IntegerField(blank=False, null=False)
 
     def __str__(self):
-        return self.subject_code+self.name
+        return self.subject_code + self.name
 
 
-class Schedule(models.Model):
+class ClassSchedule(models.Model):
     class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE, blank=True, null=True)
     day = models.IntegerField(blank=False, null=False)  # Representing days of the week as integers
     hour = models.IntegerField(blank=False, null=False)  # Representing hour in the 24-hour format
@@ -160,3 +169,15 @@ class Schedule(models.Model):
     duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture
     classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, blank=True, null=True)  # New field
     class_object = models.ForeignKey(Class, on_delete=models.CASCADE, blank=True, null=True)
+
+
+class TeacherSchedule(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    day = models.IntegerField(choices=DayOfWeek.choices)
+    hour = models.IntegerField()  # Representing hour in the 24-hour format
+    duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture
+    classroom = models.ForeignKey('Classrooms', on_delete=models.CASCADE, blank=True, null=True)
+    class_object = models.ForeignKey('Class', on_delete=models.CASCADE, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.teacher.name}'s schedule on {self.get_day_display()} at {self.hour}:00"

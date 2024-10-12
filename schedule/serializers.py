@@ -1,7 +1,8 @@
 from datetime import timedelta
 
 from rest_framework import serializers
-from .models import Teacher, Class, Schedule, ClassSubject, Subject, Classrooms, ClassroomType, Elective
+from .models import Teacher, Class, ClassSubject, Subject, Classrooms, ClassroomType, Elective, TeacherSchedule, \
+    ClassSchedule
 
 
 class TeacherSerializer(serializers.ModelSerializer):
@@ -30,15 +31,6 @@ class ClassSubjectSerializer(serializers.ModelSerializer):
         fields = ['class_name', 'subject', 'teacher', 'number_of_lectures']
 
 
-class ScheduleSerializer(serializers.ModelSerializer):
-    teacher = TeacherSerializer()
-    class_name = ClassSerializer()
-
-    class Meta:
-        model = Schedule
-        fields = ['id', 'teacher', 'class_name', 'day', 'time']
-
-
 class BookSlotSerializer(serializers.Serializer):
     day = serializers.IntegerField()
     time = serializers.IntegerField()
@@ -51,13 +43,35 @@ class BookSlotSerializer(serializers.Serializer):
         time = validated_data['time']
         duration = validated_data.get('duration', 1)
 
-        schedule = Schedule.objects.create(
+        # Get class and teacher associated with the class subject
+        class_obj = class_subject.class_object
+        teacher = class_subject.teacher
+        classroom = class_subject.classroom
+
+        # Create a ClassSchedule entry
+        class_schedule = ClassSchedule.objects.create(
             class_subject=class_subject,
+            class_object=class_obj,
             day=day,
             hour=time + 9,  # Assuming time is provided as an index (0-7) and maps to actual hours (9-17)
-            duration=timedelta(hours=duration)
+            duration=timedelta(hours=duration),
+            classroom=classroom
         )
-        return schedule
+
+        # Create a TeacherSchedule entry
+        teacher_schedule = TeacherSchedule.objects.create(
+            teacher=teacher,
+            class_object=class_obj,
+            day=day,
+            hour=time + 9,  # Same time as class schedule
+            duration=timedelta(hours=duration),
+            classroom=classroom
+        )
+
+        return {
+            'class_schedule': class_schedule,
+            'teacher_schedule': teacher_schedule
+        }
 
 
 class ClassroomTypeSerializer(serializers.ModelSerializer):

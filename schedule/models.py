@@ -17,7 +17,6 @@ class DayOfWeek(models.IntegerChoices):
     THURSDAY = 4, 'Thursday'
     FRIDAY = 5, 'Friday'
     SATURDAY = 6, 'Saturday'
-    SUNDAY = 7, 'Sunday'
 
 
 class Teacher(models.Model):
@@ -62,7 +61,7 @@ class TeacherAvailability(models.Model):
 
 
 @receiver(post_save, sender=Teacher)
-def create_teacher_availability(instance, created):
+def create_teacher_availability(sender, instance, created, **kwargs):
     if created:
         for day in DayOfWeek:
             TeacherAvailability.objects.create(teacher=instance, day=day)

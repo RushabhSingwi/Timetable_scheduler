@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import List, Tuple, Optional
 
 from .models import (AvailabilityStatus, ClassSubject, Teacher, Classrooms,
-                     Class, Elective, ClassSchedule, TeacherSchedule)
+                     Class, Elective, ClassSchedule, TeacherSchedule, TeacherAvailability)
 
 
 def book_class_slot(day: int, time: int, class_subject: Optional[ClassSubject], duration: int,
@@ -108,7 +108,7 @@ class SchedulingService:
 
         print(f"DEBUG: Prepared data - Classes: {self.classes}, Teachers: {self.teachers}")
 
-    def is_slot_available(self, day: int, time: int, teacher: str, class_name: str, classroom: Classrooms) -> bool:
+    def is_slot_available(self, day: int, time: int, teacher: Teacher, class_name: str, classroom: Classrooms) -> bool:
 
         # Check if the slot is the chosen recess slot for this day
         if self.chosen_recess_slots.get(day) == time:
@@ -116,9 +116,9 @@ class SchedulingService:
             return False
         # Check teacher availability
         try:
-            teacher_obj = Teacher.objects.get(name=teacher)
-            slot_field = f'slot_{time + 9}_{time + 10}'
-            if getattr(teacher_obj, slot_field) == AvailabilityStatus.NOT_AVAILABLE:
+            teacher_availability = TeacherAvailability.objects.get(teacher=teacher, day=day)
+            slot_field = f'slot_{time}_{time + 1}'
+            if getattr(teacher_availability, slot_field) == AvailabilityStatus.NOT_AVAILABLE:
                 return False
         except Teacher.DoesNotExist:
             print(f"!!DEBUG: No availability data for teacher {teacher}")
@@ -132,7 +132,7 @@ class SchedulingService:
 
         # Check if the slot is already booked
         existing_teacher_schedule = TeacherSchedule.objects.filter(
-            teacher=teacher_obj,
+            teacher=teacher,
             day=day,
             hour=time + 9
         ).exists()
@@ -164,8 +164,8 @@ class SchedulingService:
             print(f"DEBUG: Scheduling elective {elective.name}")
 
             # Get all classes and teachers associated with this elective
-            classes = elective.class_pair.all()
-            teachers = elective.teacher_pair.all()
+            classes = list(elective.class_pair.all())
+            teachers = list(elective.teacher_pair.all())
 
             # Use the duration from the Elective model
             elective_duration = elective.duration

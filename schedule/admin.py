@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Teacher, Subject, ClassSubject, Class, Classrooms, Elective
+from .models import Teacher, Subject, ClassSubject, Class, Classrooms, Elective, TeacherSchedule, ClassSchedule
 
 
 # Register your models here.
@@ -39,3 +39,25 @@ class ClassroomsAdmin(admin.ModelAdmin):
 class ElectiveAdmin(admin.ModelAdmin):
     list_display = ('name', 'subject_code')  # Specify which fields to display in the list view
     search_fields = ('name', 'subject_code')  # Allow searching by these fields
+
+
+@admin.register(TeacherSchedule)
+class TeacherScheduleAdmin(admin.ModelAdmin):
+    list_display = ['teacher', 'day', 'hour', 'classroom', 'class_object']
+    list_filter = ['teacher', 'day', 'hour', 'classroom', 'class_object']
+    search_fields = ['teacher__name', 'classroom__classroom_name', 'class_object__name']
+
+@admin.register(ClassSchedule)
+class ClassScheduleAdmin(admin.ModelAdmin):
+    list_display = ['id', 'day', 'hour', 'get_subject', 'get_teacher', 'classroom', 'class_object']
+    list_filter = ['day', 'hour', 'classroom', 'class_object']
+    search_fields = ['class_subject__subject__name', 'class_subject__teacher__name', 'classroom__classroom_name', 'class_object__name']
+
+    def get_subject(self, obj):
+        return obj.class_subject.subject.name if obj.class_subject else '-'
+    get_subject.short_description = 'Subject'
+
+    def get_teacher(self, obj):
+        return obj.class_subject.teacher.name if obj.class_subject else '-'
+    get_teacher.short_description = 'Teacher'
+

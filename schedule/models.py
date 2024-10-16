@@ -3,20 +3,7 @@ from datetime import timedelta
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-
-
-class AvailabilityStatus(models.TextChoices):
-    AVAILABLE = 'A', 'Available'
-    NOT_AVAILABLE = 'N', 'Not Available'
-
-
-class DayOfWeek(models.IntegerChoices):
-    MONDAY = 1, 'Monday'
-    TUESDAY = 2, 'Tuesday'
-    WEDNESDAY = 3, 'Wednesday'
-    THURSDAY = 4, 'Thursday'
-    FRIDAY = 5, 'Friday'
-    SATURDAY = 6, 'Saturday'
+from .constants import AvailabilityStatus, DayOfWeek
 
 
 class Teacher(models.Model):
@@ -75,10 +62,66 @@ class ClassroomType(models.Model):
 
 
 class Classrooms(models.Model):
-    classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
+    classroom_type = models.ForeignKey('ClassroomType', on_delete=models.CASCADE)
     classroom_name = models.CharField(max_length=10, blank=False, null=False)
 
-    # Availability for each hour slot (9 AM to 5 PM)
+    def __str__(self):
+        return f"{self.classroom_name} - {self.id}"
+
+    def is_classroom_available(self, day, time):
+        """
+        Check if this classroom is available at a specific day and time.
+        :param day: Integer representing the day (e.g., 1 for Monday)
+        :param time: Offset from 9 AM (e.g., 0 for 9 AM, 1 for 10 AM)
+        :return: True if available, False otherwise
+        """
+        hour = time + 9  # Convert offset to the actual hour (0 -> 9 AM, 1 -> 10 AM)
+
+        if hour < 9 or hour > 16:
+            raise ValueError("Hour must be between 9 and 16.")
+
+        # Fetch availability for this classroom and day
+        try:
+            availability = ClassroomAvailability.objects.get(classroom=self, day=day)
+        except ClassroomAvailability.DoesNotExist:
+            print(f"DEBUG: No availability record for {self} on day {day}.")
+            return False
+
+        # Dynamically check the relevant time slot (e.g., 'slot_9_10')
+        slot_name = f'slot_{hour}_{hour + 1}'
+        return getattr(availability, slot_name) == 'A'  # 'A' stands for Available
+
+    def book_classroom(self, day, time):
+        """
+        Book the classroom at a specific day and time.
+        :param day: Integer representing the day (e.g., 0 for Monday)
+        :param time: Offset from 9 AM (e.g., 0 for 9 AM, 1 for 10 AM)
+        """
+        hour = time + 9
+        if hour < 9 or hour > 16:
+            raise ValueError("Hour must be between 9 and 16.")
+
+        try:
+            availability = ClassroomAvailability.objects.get(classroom=self, day=day)
+        except ClassroomAvailability.DoesNotExist:
+            raise Exception(f"No availability record found for {self} on day {day}.")
+
+        slot_name = f'slot_{hour}_{hour + 1}'
+        if getattr(availability, slot_name) != 'A':
+            raise Exception(f"{self} is not available at {hour}:00 on day {day}.")
+
+        # Book the classroom by setting the slot to 'N' (Not Available)
+        setattr(availability, slot_name, 'N')
+        availability.save()  # Save the updated availability
+
+        print(f"DEBUG: {self} booked successfully at {hour}:00 on day {day}.")
+
+
+class ClassroomAvailability(models.Model):
+    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, related_name='availabilities')
+    day = models.IntegerField(choices=DayOfWeek.choices)
+
+    # Hour slots for 9 AM to 5 PM
     slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
                                  default=AvailabilityStatus.AVAILABLE)
     slot_10_11 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
@@ -96,28 +139,24 @@ class Classrooms(models.Model):
     slot_16_17 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
                                   default=AvailabilityStatus.AVAILABLE)
 
-    def __str__(self):
-        return f"{self.classroom_name} - {self.id}"
+    class Meta:
+        unique_together = ('classroom', 'day')
 
-    def check_availability(self, hour):
-        """
-        Check if this specific classroom is available at a specific hour.
-        """
-        slot_name = f'slot_{hour}_{hour + 1}'  # e.g., 'slot_9_10'
+    def __str__(self):
+        return f"Availability for {self.classroom} on day {self.day}"
+
+    def check_slot(self, hour):
+        slot_name = f'slot_{hour}_{hour + 1}'
         return getattr(self, slot_name) == AvailabilityStatus.AVAILABLE
 
-    def book_classroom(self, hour):
-        if hour < 9 or hour > 16:
-            raise ValueError("Hour must be between 9 and 16 (inclusive).")
-
+    def book_slot(self, hour):
         slot_name = f'slot_{hour}_{hour + 1}'
 
-        if not self.check_availability(hour):
-            raise Exception(f"{self} is not available at {hour}:00.")
+        if not self.check_slot(hour):
+            raise Exception(f"{self.classroom} is not available at {hour}:00 on day {self.day}.")
 
-        # Mark the classroom as not available
         setattr(self, slot_name, 'N')  # Set to Not Available
-        self.save()  # Save changes to the database
+        self.save()
 
 
 class Subject(models.Model):

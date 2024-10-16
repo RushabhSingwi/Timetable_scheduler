@@ -40,7 +40,7 @@ def book_class_slot(day: int, time: int, class_subject: Optional[ClassSubject], 
 
         # Book classroom only if not recess
         if classroom and class_subject:
-            classroom.book_classroom((time + slot_offset) + 9)
+            classroom.book_classroom(day, (time + slot_offset))
 
 
 def book_teacher_slot(day: int, time: int, duration: int, teacher: Teacher,
@@ -111,13 +111,13 @@ class SchedulingService:
     def is_slot_available(self, day: int, time: int, teacher: Teacher, class_name: str, classroom: Classrooms) -> bool:
 
         # Check if the slot is the chosen recess slot for this day
-        if self.chosen_recess_slots.get(day) == time:
+        if self.chosen_recess_slots.get(day) == time+9:
             print(f"DEBUG: Slot {time} is the chosen recess slot for day {day}")
             return False
         # Check teacher availability
         try:
             teacher_availability = TeacherAvailability.objects.get(teacher=teacher, day=day)
-            slot_field = f'slot_{time}_{time + 1}'
+            slot_field = f'slot_{time+9}_{time + 10}'
             if getattr(teacher_availability, slot_field) == AvailabilityStatus.NOT_AVAILABLE:
                 return False
         except Teacher.DoesNotExist:
@@ -126,7 +126,7 @@ class SchedulingService:
             return False
 
         # Check classroom availability
-        if not classroom.check_availability(time + 9):
+        if not classroom.is_classroom_available(day, time):
             print(f"DEBUG: Classroom {classroom} not available")
             return False
 

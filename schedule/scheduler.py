@@ -2,6 +2,8 @@ import random
 from datetime import timedelta
 from typing import List, Tuple, Optional
 
+from django.db import transaction
+
 from .models import (AvailabilityStatus, ClassSubject, Teacher, Classrooms,
                      Class, Elective, ClassSchedule, TeacherSchedule, TeacherAvailability)
 
@@ -196,15 +198,38 @@ class SchedulingService:
                     available_classrooms[class_obj] = class_available_classrooms
 
                 if all_available:
-                    # Book the slot for all classes and teachers, assigning a classroom for each class
-                    for class_obj in classes:
-                        classroom = random.choice(available_classrooms[class_obj])
-                        # Book the slot for the class
-                        book_class_slot(day, time, elective, elective_duration, classroom, class_obj.name)
+                    # Use a transaction to ensure all database operations succeed or fail together
+                    with transaction.atomic():
+                        for class_obj in classes:
+                            classroom = random.choice(available_classrooms[class_obj])
+                            # Book the slot for the class
+                            book_class_slot(day, time, elective, elective_duration, classroom, class_obj.name)
 
-                        for teacher in teachers:
-                            # Book the slot for the teacher
-                            book_teacher_slot(day, time, elective, elective_duration, classroom, teacher)
+# todo: Change class_subject from None to elective
+
+                            # Create ClassSchedule object for this class
+                            ClassSchedule.objects.create(
+                                class_subject=None,  # Since this is an elective, class_subject is None
+                                day=day,
+                                hour=time + 9,  # Assuming time is an offset from 9 AM
+                                duration=timedelta(hours=elective_duration),
+                                classroom=classroom,
+                                class_object=class_obj
+                            )
+
+                            for teacher in teachers:
+                                # Book the slot for the teacher
+                                book_teacher_slot(day, time, elective, elective_duration, classroom, teacher)
+
+                                # Create TeacherSchedule object for this teacher
+                                TeacherSchedule.objects.create(
+                                    teacher=teacher,
+                                    day=day,
+                                    hour=time + 9,  # Assuming time is an offset from 9 AM
+                                    duration=timedelta(hours=elective_duration),
+                                    classroom=classroom,
+                                    class_object=class_obj
+                                )
 
                     lectures_scheduled += 1
 

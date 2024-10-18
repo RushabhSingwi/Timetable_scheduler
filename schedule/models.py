@@ -188,15 +188,14 @@ class ClassSubject(models.Model):
 
 class Elective(models.Model):
     name = models.CharField(max_length=100, blank=False, null=False)
-    subject_code = models.CharField(max_length=20, blank=False, null=False)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
     class_pair = models.ManyToManyField(Class, related_name='electives')
     teacher_pair = models.ManyToManyField(Teacher, related_name='elective_teacher')
     duration = models.IntegerField(default=1)
-    classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
     number_of_lectures = models.IntegerField(blank=False, null=False)
 
     def __str__(self):
-        return self.subject_code + self.name
+        return self.subject.subject_code + self.name
 
 
 class ClassSchedule(models.Model):

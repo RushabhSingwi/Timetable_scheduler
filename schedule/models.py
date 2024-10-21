@@ -164,6 +164,7 @@ class Subject(models.Model):
     duration = models.IntegerField(default=1)
     classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
     subject_code = models.CharField(max_length=20, blank=False, null=False)
+    is_lab = models.BooleanField(default=False)
 
     def __str__(self):
         return self.subject_code + self.name

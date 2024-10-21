@@ -12,8 +12,9 @@ class TeacherAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'duration')  # Show the 'id', 'name' and 'duration' columns in the list view
-    search_fields = ('name',)  # Enable searching by the 'name' field
+    list_display = ('name', 'subject_code', 'duration', 'is_lab', 'classroom_type')
+    list_filter = ('is_lab', 'classroom_type')
+    search_fields = ['name', 'subject_code']
 
 
 @admin.register(Class)
@@ -37,8 +38,13 @@ class ClassroomsAdmin(admin.ModelAdmin):
 
 @admin.register(Elective)
 class ElectiveAdmin(admin.ModelAdmin):
-    list_display = ('name', 'subject_code')  # Specify which fields to display in the list view
-    search_fields = ('name', 'subject_code')  # Allow searching by these fields
+    list_display = ('name', 'get_subject_code')  # Specify which fields to display in the list view
+    search_fields = ('name', 'get_subject_code')  # Allow searching by these fields
+
+    @staticmethod
+    def get_subject_code(obj):
+        # Assuming `Elective` has a ForeignKey to `Subject` called `subject`
+        return obj.subject.subject_code if obj.subject else 'N/A'
 
 
 @admin.register(TeacherSchedule)
@@ -47,17 +53,20 @@ class TeacherScheduleAdmin(admin.ModelAdmin):
     list_filter = ['teacher', 'day', 'hour', 'classroom', 'class_object']
     search_fields = ['teacher__name', 'classroom__classroom_name', 'class_object__name']
 
+
 @admin.register(ClassSchedule)
 class ClassScheduleAdmin(admin.ModelAdmin):
     list_display = ['id', 'day', 'hour', 'get_subject', 'get_teacher', 'classroom', 'class_object']
     list_filter = ['day', 'hour', 'classroom', 'class_object']
-    search_fields = ['class_subject__subject__name', 'class_subject__teacher__name', 'classroom__classroom_name', 'class_object__name']
+    search_fields = ['class_subject__subject__name', 'class_subject__teacher__name', 'classroom__classroom_name',
+                     'class_object__name']
 
     def get_subject(self, obj):
         return obj.class_subject.subject.name if obj.class_subject else '-'
+
     get_subject.short_description = 'Subject'
 
     def get_teacher(self, obj):
         return obj.class_subject.teacher.name if obj.class_subject else '-'
-    get_teacher.short_description = 'Teacher'
 
+    get_teacher.short_description = 'Teacher'

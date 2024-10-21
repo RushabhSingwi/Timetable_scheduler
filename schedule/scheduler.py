@@ -1,11 +1,11 @@
 import random
 from datetime import timedelta
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Union
 
 from django.db import transaction
 
-from .models import (AvailabilityStatus, ClassSubject, Teacher, Classrooms,
-                     Class, Elective, ClassSchedule, TeacherSchedule, TeacherAvailability)
+from .models import (ClassSubject, Teacher, Classrooms,
+                     Class, ClassSchedule, TeacherSchedule)
 
 
 def book_class_slot(day: int, time: int, class_subject: Optional[ClassSubject], duration: int,
@@ -84,6 +84,121 @@ def has_teacher_scheduled_class(day: int, teacher: str, class_name: str) -> bool
     return exists
 
 
+class MultiLabScheduler:
+    def __init__(self, num_days: int = 6):
+        self.num_days = num_days
+        self.time_slots = 8
+        self.lab_duration = 2  # Lab sessions are 2 hours long
+
+    def schedule_lab_sessions(self, class_obj: Class, lab_subjects: List[ClassSubject], sessions_per_week: int) -> bool:
+        """
+        Schedule multiple lab sessions for a class, ensuring at most one per day.
+
+        :param class_obj: The class to schedule lab sessions for
+        :param lab_subjects: List of lab subjects to be scheduled
+        :param sessions_per_week: Number of lab sessions to schedule per week
+        :return: True if all sessions were successfully scheduled, False otherwise
+        """
+        if not lab_subjects:
+            print(f"ERROR: No lab subjects provided for {class_obj.name}")
+            return False
+
+        scheduled_sessions = 0
+        available_slots = self.get_available_slots(class_obj)
+
+        while scheduled_sessions < sessions_per_week and available_slots:
+            day, time = random.choice(list(available_slots.keys()))
+            lab_subject = random.choice(lab_subjects)
+
+            if self.schedule_single_lab_session(class_obj, lab_subject, day, time):
+                scheduled_sessions += 1
+                # Remove all slots for this day to ensure only one lab per day
+                available_slots = {k: v for k, v in available_slots.items() if k[0] != day}
+            else:
+                # Remove this slot if scheduling failed
+                del available_slots[(day, time)]
+
+        if scheduled_sessions < sessions_per_week:
+            print(
+                f"WARNING: Could only schedule {scheduled_sessions}/{sessions_per_week} "
+                f"lab sessions for {class_obj.name}")
+            return False
+
+        print(f"DEBUG: Successfully scheduled {scheduled_sessions} lab sessions for {class_obj.name}")
+        return True
+
+    def get_available_slots(self, class_obj: Class) -> Dict[Tuple[int, int], List[Classrooms]]:
+        available_slots = {}
+        for day in range(self.num_days):
+            for time in range(self.time_slots - self.lab_duration + 1):  # Ensure we don't overflow time slots
+                classrooms = self.get_available_classrooms(class_obj, day, time)
+                if classrooms:
+                    available_slots[(day, time)] = classrooms
+        return available_slots
+
+    def get_available_classrooms(self, class_obj: Class, day: int, time: int) -> List[Classrooms]:
+        lab_classroom_types = set(subject.subject.classroom_type for subject in
+                                  class_obj.classsubject_set.filter(subject__classroom_type__name='Laboratory'))
+        available_classrooms = []
+
+        for classroom_type in lab_classroom_types:
+            classrooms = Classrooms.objects.filter(classroom_type=classroom_type)
+            for classroom in classrooms:
+                if self.is_slot_available(day, time, classroom, self.lab_duration):
+                    available_classrooms.append(classroom)
+
+        return available_classrooms
+
+    def is_slot_available(self, day: int, time: int, classroom: Classrooms, duration: int) -> bool:
+        for hour in range(time, time + duration):
+            if ClassSchedule.objects.filter(day=day, hour=hour + 9, classroom=classroom).exists():
+                return False
+        return True
+
+    def schedule_single_lab_session(self, class_obj: Class, lab_subject: ClassSubject, day: int, time: int) -> bool:
+        classroom = self.get_available_classrooms(class_obj, day, time)[0]  # Get the first available classroom
+        teacher = lab_subject.teacher
+
+        if not self.is_teacher_available(teacher, day, time):
+            print(f"DEBUG: Teacher {teacher.name} not available for lab on day {day}, time {time}")
+            return False
+
+        with transaction.atomic():
+            self.book_lab_slot(day, time, lab_subject, classroom, class_obj)
+            self.book_teacher_slot(day, time, teacher, classroom, class_obj)
+
+        print(f"DEBUG: Scheduled lab session for {class_obj.name} on day {day}, time {time}")
+        return True
+
+    def is_teacher_available(self, teacher: Teacher, day: int, time: int) -> bool:
+        for hour in range(time, time + self.lab_duration):
+            if TeacherSchedule.objects.filter(teacher=teacher, day=day, hour=hour + 9).exists():
+                return False
+        return True
+
+    def book_lab_slot(self, day: int, time: int, lab_subject: ClassSubject, classroom: Classrooms, class_obj: Class):
+        for hour in range(self.lab_duration):
+            ClassSchedule.objects.create(
+                class_subject=lab_subject,
+                day=day,
+                hour=time + hour + 9,
+                duration=timedelta(hours=1),
+                classroom=classroom,
+                class_object=class_obj
+            )
+
+    def book_teacher_slot(self, day: int, time: int, teacher: Teacher, classroom: Classrooms, class_obj: Class):
+        for hour in range(self.lab_duration):
+            TeacherSchedule.objects.create(
+                teacher=teacher,
+                day=day,
+                hour=time + hour + 9,
+                duration=timedelta(hours=1),
+                classroom=classroom,
+                class_object=class_obj
+            )
+
+
 class SchedulingService:
     def __init__(self, num_days: int = 6):
         self.num_days = num_days
@@ -93,6 +208,7 @@ class SchedulingService:
         self.schedule = []
         self.potential_recess_slots = [2, 3, 4]  # 11 AM, 12 PM, 1 PM (0-based index)
         self.chosen_recess_slots = {}
+        self.multi_lab_scheduler = MultiLabScheduler(num_days)
         print("DEBUG: TimetableGenerator initialized")
 
     def prepare_data(self):
@@ -110,21 +226,24 @@ class SchedulingService:
 
         print(f"DEBUG: Prepared data - Classes: {self.classes}, Teachers: {self.teachers}")
 
-    def is_slot_available(self, day: int, time: int, teacher: Teacher, class_name: str, classroom: Classrooms) -> bool:
+    def is_slot_available(self, day: int, time: int, teacher: Union[Teacher, str],
+                          class_name: str, classroom: Classrooms) -> bool:
+
+        if isinstance(teacher, str):
+            try:
+                teacher = Teacher.objects.get(name=teacher)
+            except Teacher.DoesNotExist:
+                print(f"!!DEBUG: No teacher found with name {teacher}")
+                return False
 
         # Check if the slot is the chosen recess slot for this day
         if self.chosen_recess_slots.get(day) == time+9:
             print(f"DEBUG: Slot {time} is the chosen recess slot for day {day}")
             return False
-        # Check teacher availability
-        try:
-            teacher_availability = TeacherAvailability.objects.get(teacher=teacher, day=day)
-            slot_field = f'slot_{time+9}_{time + 10}'
-            if getattr(teacher_availability, slot_field) == AvailabilityStatus.NOT_AVAILABLE:
-                return False
-        except Teacher.DoesNotExist:
-            print(f"!!DEBUG: No availability data for teacher {teacher}")
-            # If no availability is defined, assume the teacher is available
+
+        # Check if teacher is available
+        if not teacher.is_available(day, time+9):
+            print(f"DEBUG: Teacher {teacher.name} is not available.")
             return False
 
         # Check classroom availability
@@ -132,25 +251,13 @@ class SchedulingService:
             print(f"DEBUG: Classroom {classroom} not available")
             return False
 
-        # Check if the slot is already booked
-        existing_teacher_schedule = TeacherSchedule.objects.filter(
-            teacher=teacher,
-            day=day,
-            hour=time + 9
-        ).exists()
-
-        if existing_teacher_schedule:
-            print(f"DEBUG: Slot already booked")
+        # Check if slot is booked for the teacher or class
+        if TeacherSchedule.objects.filter(teacher=teacher, day=day, hour=time + 9).exists():
+            print(f"DEBUG: Slot already booked for teacher {teacher.name}.")
             return False
-            # Check if the slot is already booked for the class in `ClassSchedule`
-        existing_class_schedule = ClassSchedule.objects.filter(
-            class_object__name=class_name,
-            day=day,
-            hour=time + 9
-        ).exists()
 
-        if existing_class_schedule:
-            print(f"DEBUG: Class {class_name} already has a scheduled session at this time")
+        if ClassSchedule.objects.filter(class_object__name=class_name, day=day, hour=time + 9).exists():
+            print(f"DEBUG: Class {class_name} already has a session at this time.")
             return False
 
         print(f"DEBUG: Slot is available")
@@ -160,84 +267,110 @@ class SchedulingService:
         print("DEBUG: Starting timetable generation")
         self.prepare_data()
 
-        # Schedule electives
-        electives = Elective.objects.all()
-        for elective in electives:
-            print(f"DEBUG: Scheduling elective {elective.name}")
+        for class_name, teachers in self.classes.items():
 
-            # Get all classes and teachers associated with this elective
-            classes = list(elective.class_pair.all())
-            teachers = list(elective.teacher_pair.all())
+            # Choose and book one recess slot for this class each day
+            for day in range(self.num_days):
+                recess_time = random.choice(self.potential_recess_slots)
+                self.chosen_recess_slots[day] = recess_time
 
-            # Use the duration from the Elective model
-            elective_duration = elective.duration
-            lectures_to_schedule = elective.number_of_lectures
+                # Use book_slot to book the recess for this class
+                book_class_slot(day, recess_time, None, 1, None, class_name)
+                print(f"DEBUG: Booked recess for class {class_name} on day {day} at time {recess_time + 9}")
 
-            lectures_scheduled = 0
-            attempts = 0
-            max_attempts = 100
+        # Schedule lab sessions
+        for class_name, subjects in self.classes.items():
+            class_obj = Class.objects.get(name=class_name)
 
-            while lectures_scheduled < lectures_to_schedule and attempts < max_attempts:
-                day = random.randint(0, self.num_days - 1)
-                time = random.randint(0, self.time_slots - 1)
+            # Flatten the nested structure and filter lab subjects
+            lab_subjects = []
+            for prof_subjects in subjects.values():
+                for subj in prof_subjects:
+                    if subj.subject.is_lab:  # Assuming is_lab is a property of ClassSubject
+                        lab_subjects.append(subj)
 
-                # Check if all classes and teachers are available
-                all_available = True
-                available_classrooms = {}
-                for class_obj in classes:
-                    # Get available classrooms of the type specified by the elective
-                    class_classrooms = Classrooms.objects.filter(classroom_type=elective.classroom_type)
-                    class_available_classrooms = [
-                        classroom for classroom in class_classrooms
-                        if all(self.is_slot_available(day, time, teacher, class_obj.name, classroom)
-                               for teacher in teachers)
-                    ]
-                    if not class_available_classrooms:
-                        all_available = False
-                        break
-                    available_classrooms[class_obj] = class_available_classrooms
+            if lab_subjects:
+                sessions_per_week = sum(subj.number_of_lectures for subj in lab_subjects)
+                self.multi_lab_scheduler.schedule_lab_sessions(class_obj, lab_subjects, sessions_per_week)
 
-                if all_available:
-                    # Use a transaction to ensure all database operations succeed or fail together
-                    with transaction.atomic():
-                        for class_obj in classes:
-                            classroom = random.choice(available_classrooms[class_obj])
-                            # Book the slot for the class
-                            book_class_slot(day, time, elective, elective_duration, classroom, class_obj.name)
-
-# todo: Change class_subject from None to elective
-
-                            # Create ClassSchedule object for this class
-                            ClassSchedule.objects.create(
-                                class_subject=None,  # Since this is an elective, class_subject is None
-                                day=day,
-                                hour=time + 9,  # Assuming time is an offset from 9 AM
-                                duration=timedelta(hours=elective_duration),
-                                classroom=classroom,
-                                class_object=class_obj
-                            )
-
-                            for teacher in teachers:
-                                # Book the slot for the teacher
-                                book_teacher_slot(day, time, elective, elective_duration, classroom, teacher)
-
-                                # Create TeacherSchedule object for this teacher
-                                TeacherSchedule.objects.create(
-                                    teacher=teacher,
-                                    day=day,
-                                    hour=time + 9,  # Assuming time is an offset from 9 AM
-                                    duration=timedelta(hours=elective_duration),
-                                    classroom=classroom,
-                                    class_object=class_obj
-                                )
-
-                    lectures_scheduled += 1
-
-                attempts += 1
-
-            if lectures_scheduled < lectures_to_schedule:
-                print(f"WARNING: Could not schedule all lectures for elective {elective.name}. "
-                      f"Scheduled {lectures_scheduled}/{lectures_to_schedule}")
+#         # Schedule electives
+#         electives = Elective.objects.all()
+#         for elective in electives:
+#             print(f"DEBUG: Scheduling elective {elective.name}")
+#
+#             # Get all classes and teachers associated with this elective
+#             classes = list(elective.class_pair.all())
+#             teachers = list(elective.teacher_pair.all())
+#
+#             # Use the duration from the Elective model
+#             elective_duration = elective.duration
+#             lectures_to_schedule = elective.number_of_lectures
+#
+#             lectures_scheduled = 0
+#             attempts = 0
+#             max_attempts = 100
+#
+#             while lectures_scheduled < lectures_to_schedule and attempts < max_attempts:
+#                 day = random.randint(0, self.num_days - 1)
+#                 time = random.randint(0, self.time_slots - 1)
+#
+#                 # Check if all classes and teachers are available
+#                 all_available = True
+#                 available_classrooms = {}
+#                 for class_obj in classes:
+#                     # Get available classrooms of the type specified by the elective
+#                     class_classrooms = Classrooms.objects.filter(classroom_type=elective.classroom_type)
+#                     class_available_classrooms = [
+#                         classroom for classroom in class_classrooms
+#                         if all(self.is_slot_available(day, time, teacher, class_obj.name, classroom)
+#                                for teacher in teachers)
+#                     ]
+#                     if not class_available_classrooms:
+#                         all_available = False
+#                         break
+#                     available_classrooms[class_obj] = class_available_classrooms
+#
+#                 if all_available:
+#                     # Use a transaction to ensure all database operations succeed or fail together
+#                     with transaction.atomic():
+#                         for class_obj in classes:
+#                             classroom = random.choice(available_classrooms[class_obj])
+#                             # Book the slot for the class
+#                             book_class_slot(day, time, elective, elective_duration, classroom, class_obj.name)
+#
+# # todo: Change class_subject from None to elective
+#
+#                             # Create ClassSchedule object for this class
+#                             ClassSchedule.objects.create(
+#                                 class_subject=None,  # Since this is an elective, class_subject is None
+#                                 day=day,
+#                                 hour=time + 9,  # Assuming time is an offset from 9 AM
+#                                 duration=timedelta(hours=elective_duration),
+#                                 classroom=classroom,
+#                                 class_object=class_obj
+#                             )
+#
+#                             for teacher in teachers:
+#                                 # Book the slot for the teacher
+#                                 book_teacher_slot(day, time, elective, elective_duration, classroom, teacher)
+#
+#                                 # Create TeacherSchedule object for this teacher
+#                                 TeacherSchedule.objects.create(
+#                                     teacher=teacher,
+#                                     day=day,
+#                                     hour=time + 9,  # Assuming time is an offset from 9 AM
+#                                     duration=timedelta(hours=elective_duration),
+#                                     classroom=classroom,
+#                                     class_object=class_obj
+#                                 )
+#
+#                     lectures_scheduled += 1
+#
+#                 attempts += 1
+#
+#             if lectures_scheduled < lectures_to_schedule:
+#                 print(f"WARNING: Could not schedule all lectures for elective {elective.name}. "
+#                       f"Scheduled {lectures_scheduled}/{lectures_to_schedule}")
 
         for class_name, teachers in self.classes.items():
 
@@ -358,7 +491,7 @@ class SchedulingService:
                     # Update teacher schedule
                     if teacher not in teacher_schedules:
                         teacher_schedules[teacher] = [["Free" for _ in times] for _ in days]
-                    teacher_schedules[teacher][day_index][time_index] = f"{subject} - {class_name} - {classroom}"
+                    teacher_schedules[teacher][day_index][time_index] = f"{class_name} - {subject} - {classroom}"
 
         # Print timetable for each class
         for class_name, timetable in class_schedules.items():

@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 .idea/
 schedule/migrations/*.py
+
+# Ignore Python bytecode
+*.pyc
+__pycache__/

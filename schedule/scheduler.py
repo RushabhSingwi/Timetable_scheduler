@@ -2,11 +2,16 @@ import random
 from datetime import timedelta
 from typing import List, Tuple, Optional
 
-from django.db import transaction
 from django.db.models import Q
 
-from .models import (Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms, ClassroomType,
+from .models import (Availability, AvailabilityStatus, ClassSubject, Teacher, Schedule, Classrooms,
                      Class)
+
+
+def delete_all_schedules():
+    """Deletes all entries in the Schedule model."""
+    Schedule.objects.all().delete()
+    print("All schedule entries have been deleted.")
 
 
 def book_slot(day: int, time: int, class_subject: Optional[ClassSubject], duration: int,
@@ -126,18 +131,18 @@ class SchedulingService:
 
     def generate_timetable(self):
         print("DEBUG: Starting timetable generation")
+        delete_all_schedules()
         self.prepare_data()
 
-        for class_name, teachers in self.classes.items():
-
+        for class_name in self.classes:
             # Choose and book one recess slot for this class each day
             for day in range(self.num_days):
                 recess_time = random.choice(self.potential_recess_slots)
                 self.chosen_recess_slots[day] = recess_time
-
                 # Use book_slot to book the recess for this class
                 book_slot(day, recess_time, None, 1, None, class_name)
                 print(f"DEBUG: Booked recess for class {class_name} on day {day} at time {recess_time + 9}")
+        for class_name, teachers in self.classes.items():
 
             for teacher, class_subjects in teachers.items():
                 print(f"DEBUG: Scheduling for class {class_name}, teacher {teacher}, {len(class_subjects)} subjects")

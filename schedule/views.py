@@ -13,6 +13,8 @@ from .serializers import TeacherSerializer, ClassSubjectSerializer, \
 
 # def frontend(request):
 #     return render(request, '../static/frontend/index.html')
+def landing_page(request):
+    return render(request, 'index.html')
 
 
 class TeacherCreateView(APIView):

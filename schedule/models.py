@@ -62,7 +62,7 @@ class ClassroomType(models.Model):
 
 
 class Classrooms(models.Model):
-    classroom_type = models.ForeignKey('ClassroomType', on_delete=models.CASCADE)
+    classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
     classroom_name = models.CharField(max_length=10, blank=False, null=False)
 
     def __str__(self):
@@ -155,13 +155,15 @@ class ClassroomAvailability(models.Model):
         if not self.check_slot(hour):
             raise Exception(f"{self.classroom} is not available at {hour}:00 on day {self.day}.")
 
+        # Mark the classroom as not available
         setattr(self, slot_name, 'N')  # Set to Not Available
-        self.save()
+        self.save()  # Save changes to the database
 
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     duration = models.IntegerField(default=1)
+    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, default=1)
     classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
     subject_code = models.CharField(max_length=20, blank=False, null=False)
     is_lab = models.BooleanField(default=False)

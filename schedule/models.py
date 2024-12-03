@@ -9,6 +9,27 @@ class Teacher(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # Check if this is a new Teacher object (i.e., not already in the database)
+        is_new = self._state.adding
+        super(Teacher, self).save(*args, **kwargs)
+
+        # If it's a new teacher, create Availability for each day
+        if is_new:
+            for day in range(1, 7):  # Assuming days 1 to 6 represent Monday to Saturday
+                Availability.objects.create(
+                    teacher=self,
+                    day=day,
+                    slot_9_10=AvailabilityStatus.AVAILABLE,
+                    slot_10_11=AvailabilityStatus.AVAILABLE,
+                    slot_11_12=AvailabilityStatus.AVAILABLE,
+                    slot_12_1=AvailabilityStatus.AVAILABLE,
+                    slot_1_2=AvailabilityStatus.AVAILABLE,
+                    slot_2_3=AvailabilityStatus.AVAILABLE,
+                    slot_3_4=AvailabilityStatus.AVAILABLE,
+                    slot_4_5=AvailabilityStatus.AVAILABLE,
+                )
+
 
 class ClassroomType(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -27,19 +48,25 @@ class Classrooms(models.Model):
     classroom_name = models.CharField(max_length=10, blank=False, null=False)
 
     # Availability for each hour slot (9 AM to 5 PM)
-    slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
+    slot_9_10 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                 default=AvailabilityStatus.AVAILABLE)
     slot_10_11 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
                                   default=AvailabilityStatus.AVAILABLE)
     slot_11_12 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
                                   default=AvailabilityStatus.AVAILABLE)
-    slot_12_1 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
-    slot_1_2 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
-    slot_2_3 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
-    slot_3_4 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
-    slot_4_5 = models.CharField(max_length=1, choices=AvailabilityStatus.choices, default=AvailabilityStatus.AVAILABLE)
+    slot_12_13 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_13_14 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_14_15 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_15_16 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_16_17 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
 
     def __str__(self):
-        return f"{self.classroom_type.name} - {self.id}"
+        return f"{self.classroom_name} - {self.id}"
 
     def check_availability(self, hour):
         """
@@ -65,11 +92,11 @@ class Classrooms(models.Model):
 class Subject(models.Model):
     name = models.CharField(max_length=100)
     duration = models.IntegerField(default=1)
-    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, default=1)
+    classroom_type = models.ForeignKey(ClassroomType, on_delete=models.CASCADE)
     subject_code = models.CharField(max_length=20, blank=False, null=False)
 
     def __str__(self):
-        return self.name
+        return self.subject_code+self.name
 
 
 class Class(models.Model):
@@ -100,21 +127,23 @@ class Availability(models.Model):
                                   default=AvailabilityStatus.AVAILABLE)
     slot_11_12 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
                                   default=AvailabilityStatus.AVAILABLE)
-    slot_12_1 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                 default=AvailabilityStatus.AVAILABLE)
-    slot_1_2 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                default=AvailabilityStatus.AVAILABLE)
-    slot_2_3 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                default=AvailabilityStatus.AVAILABLE)
-    slot_3_4 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                default=AvailabilityStatus.AVAILABLE)
-    slot_4_5 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
-                                default=AvailabilityStatus.AVAILABLE)
+    slot_12_13 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_13_14 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_14_15 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_15_16 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
+    slot_16_17 = models.CharField(max_length=1, choices=AvailabilityStatus.choices,
+                                  default=AvailabilityStatus.AVAILABLE)
 
 
 class Schedule(models.Model):
-    class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE, blank=False, null=False)
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.CASCADE, blank=True, null=True)
     day = models.IntegerField(blank=False, null=False)  # Representing days of the week as integers
     hour = models.IntegerField(blank=False, null=False)  # Representing hour in the 24-hour format
     # (9 = 9 AM, 10 = 10 AM, etc.)
     duration = models.DurationField(default=timedelta(hours=1))  # Duration of the lecture
+    classroom = models.ForeignKey(Classrooms, on_delete=models.CASCADE, blank=True, null=True)  # New field
+    class_object = models.ForeignKey(Class, on_delete=models.CASCADE, blank=True, null=True)

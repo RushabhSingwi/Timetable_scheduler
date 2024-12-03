@@ -2,9 +2,8 @@ from django.shortcuts import render
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view
 
-from .models import ClassroomType, Classrooms
+from .models import Classrooms
 from .scheduler import SchedulingService
 from .serializers import TeacherSerializer, ClassSubjectSerializer, \
     SubjectSerializer, ClassSerializer, BookSlotSerializer, ClassroomsSerializer, ClassroomTypeSerializer, \
@@ -13,6 +12,8 @@ from .serializers import TeacherSerializer, ClassSubjectSerializer, \
 
 # def frontend(request):
 #     return render(request, '../static/frontend/index.html')
+def landing_page(request):
+    return render(request, 'index.html')
 
 
 class TeacherCreateView(APIView):
@@ -151,6 +152,3 @@ class ClassroomBookingView(APIView):
             return Response({"error": "Classroom not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-

@@ -237,7 +237,7 @@ def book_lab_slot(self, day: int, time: int, lab_subject: ClassSubject, classroo
 
 def has_teacher_scheduled_class(day: int, teacher: str, class_name: str) -> bool:
     print(f"DEBUG: Checking if teacher {teacher} is already scheduled for class {class_name} on day {day}")
-    exists = Schedule.objects.filter(
+    exists = TeacherSchedule.objects.filter(
         class_subject__teacher__name=teacher,
         class_subject__class_name__name=class_name,
         day=day

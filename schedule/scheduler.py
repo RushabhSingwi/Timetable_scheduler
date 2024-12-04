@@ -185,7 +185,7 @@ def delete_all_schedules():
 
 
 def book_class_slot(day: int, time: int, class_subject: Optional[ClassSubject], duration: int,
-              classroom: Optional[Classrooms], class_name: str):
+                    classroom: Optional[Classrooms], class_name: str):
     print(f"DEBUG: Booking slot for day {day}, time {time}, class subject {class_subject}")
 
     # Retrieve the class instance based on class_name (assuming 'Class' model is being used)
@@ -282,12 +282,12 @@ class SchedulingService:
                 return False
 
         # Check if the slot is the chosen recess slot for this day
-        if self.chosen_recess_slots.get(day) == time+9:
+        if self.chosen_recess_slots.get(day) == time + 9:
             print(f"DEBUG: Slot {time} is the chosen recess slot for day {day}")
             return False
 
         # Check if teacher is available
-        if not teacher.is_available(day, time+9):
+        if not teacher.is_available(day, time + 9):
             print(f"DEBUG: Teacher {teacher.name} is not available.")
             return False
 
